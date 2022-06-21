@@ -44,10 +44,9 @@ def draw_delaunay(triangles, image):
 # 49 to 68 is mouth
 def isolate_feature(triangles, points):
     isolated_triangles = []
-    points_feature = points[36:48]
 
     for t in triangles:
-        if (t[0], t[1]) in points_feature or (t[2], t[3]) in points_feature or (t[4], t[5]) in points_feature:
+        if (t[0], t[1]) in points or (t[2], t[3]) in points or (t[4], t[5]) in points:
             isolated_triangles.append(t)
 
     return isolated_triangles
@@ -91,7 +90,49 @@ def fill_skin_color_background(points, image):
     return new_image
 
 
-def copy_triangles(t_source, t_dest, im_source, im_dest):
+def cut_triangle(points, isolated_points):
+    num = 0
+    check_points = [0, 1, 2]
+    points_on_feature = []
+    new_points = []
+    bottom_points = []
+
+    for i in range(0, 3):
+        if tuple(points[i]) in isolated_points:
+            num += 1
+            points_on_feature.append(i)
+
+    # case when all points on the feature we want
+    if num == 3:
+        return points
+
+    # case when points contain two points of the feature we want
+    if num == 2:
+        new_points.append(points[points_on_feature[0]])
+        new_points.append(points[points_on_feature[1]])
+        top_point = next(iter(set(check_points) - set(points_on_feature)))
+        midpoint_1 = (points[points_on_feature[0]] + points[top_point]) / 2
+        midpoint_2 = (points[points_on_feature[1]] + points[top_point]) / 2
+
+        # convert midpoint floats to ints
+        new_points.append(midpoint_1)
+        new_points.append(midpoint_2)
+
+    # case when points contain one points of the feature we want
+    if num == 1:
+        new_points.append(points[points_on_feature[0]])
+        for s in (set(check_points) - set(points_on_feature)):
+            bottom_points.append(s)
+
+        midpoint_1 = (points[points_on_feature[0]] + points[bottom_points[0]]) / 2
+        midpoint_2 = (points[points_on_feature[0]] + points[bottom_points[1]]) / 2
+        new_points.append(midpoint_1)
+        new_points.append(midpoint_2)
+
+    return np.asarray(new_points).astype(int)
+
+
+def copy_triangles(t_source, t_dest, im_source, im_dest, isolated_points):
     i = 0
     im_dest_copy = im_dest.copy()
 
@@ -109,43 +150,57 @@ def copy_triangles(t_source, t_dest, im_source, im_dest):
         cv2.drawContours(mask, [source_pts], -1, (255, 255, 255), -1, cv2.LINE_AA)
         triangle_slice = cv2.bitwise_and(cropped, cropped, mask=mask)
 
-        # take image, affine transform into destination triangle slice
+        # take destination points, cut down on the triangle
         dest_pts = np.resize(t_dest[i], (3, 2))
         x, y, w, h = cv2.boundingRect(dest_pts)
+
+        # take image, affine transform into destination triangle slice
         m = cv2.getAffineTransform(np.float32(source_pts), np.float32(dest_pts - dest_pts.min(axis=0)))
         triangle_slice = cv2.warpAffine(triangle_slice, m, (w, h))
 
+        new_dest_pts = cut_triangle(dest_pts, isolated_points)
+        x, y, w, h = cv2.boundingRect(new_dest_pts)
+
+        triangle_slice = cv2.resize(triangle_slice, (w, h), interpolation=cv2.INTER_AREA)
+
         # adjust destination points as necessary
-        dest_pts = dest_pts - dest_pts.min(axis=0)
+        new_dest_pts = new_dest_pts - new_dest_pts.min(axis=0)
 
         # create mask for pasting warped triangle
         mask = np.zeros((h, w, 3), np.uint8)
-        cv2.drawContours(mask, [dest_pts], -1, (255, 255, 255), -1, cv2.LINE_AA)
+        cv2.drawContours(mask, [new_dest_pts], -1, (255, 255, 255), -1, cv2.LINE_AA)
         mask = cv2.cvtColor(mask, cv2.COLOR_BGR2GRAY)
 
         # invert mask, get background
         roi = im_dest_copy[y:y+h, x:x+w]
-        if roi.shape[0] != mask.shape[0] or roi.shape[1] != mask.shape[1]:
-            print('here ' + str(i))
+        if roi.shape[:2] != mask.shape[:2]:
             mask = cv2.resize(mask, (roi.shape[1], roi.shape[0]), interpolation=cv2.INTER_AREA)
 
         mask_inv = cv2.bitwise_not(mask)
         roi_bg = cv2.bitwise_and(roi, roi, mask=mask_inv)
 
         # make sure warped triangle fits with the dimensions
-        if roi.shape[0] != triangle_slice.shape[0] or roi.shape[1] != triangle_slice.shape[1]:
-            print('now ' + str(i))
+        if roi.shape[:2] != triangle_slice.shape[:2]:
             triangle_slice = cv2.resize(triangle_slice, (roi.shape[1], roi.shape[0]), interpolation=cv2.INTER_AREA)
 
         triangle_fg = cv2.bitwise_and(triangle_slice, triangle_slice, mask=mask)
 
         # paste warped triangle to the face mask with the other warped triangles
-        im_dest_copy[y:y+h, x:x+w] = cv2.bitwise_or(roi_bg, triangle_fg)
+        temp_image = cv2.bitwise_or(roi_bg, triangle_fg)
+        # im_dest_copy[y:y+h, x:x+w] = temp_image
+        #
+        # cv2.imshow('t', temp_image)
+        # cv2.waitKey(0)
+
+        print(temp_image.shape)
+        print(temp_image.dtype)
+
+        center = (y + h / 2, x + w / 2)
+        mixed_clone = cv2.seamlessClone(temp_image, im_dest_copy, mask, center, cv2.MIXED_CLONE)
 
         i += 1
 
-    print('----------------------------------------------------------------------------')
-    return im_dest_copy
+    return mixed_clone
 
 
 file = open('landmarks_highres_cnn.csv')
@@ -170,18 +225,17 @@ for r_source in rows:
 
             # find the triangulation for the destination image (to match in the source image)
             triangles_dest = delaunay_triangulation(points_dest)
-            # triangles_dest = isolate_feature(triangles_dest, points_dest)
-            # draw_delaunay(triangles_dest, image_dest)
+            points_feature = points_dest[36:48]
+            triangles_dest = isolate_feature(triangles_dest, points_feature)
 
             # copy triangulation to the source image
             triangles_source = delaunay_copy(points_source, points_dest, triangles_dest)
-            # draw_delaunay(triangles_source, image_source)
 
             # fill background of source image with skin color
             new_image_source = fill_skin_color_background(points_source, image_source)
 
             # copy attributes from source to destination
-            new_image_source = copy_triangles(triangles_source, triangles_dest, new_image_source, image_dest)
+            new_image_source = copy_triangles(triangles_source, triangles_dest, new_image_source, image_dest, points_feature)
 
             # smooth out white lines
             # code here
