@@ -17,7 +17,7 @@ def drawLms(img, landmarks):
         elif i in range(36, 48):
             color = (255, 255, 0)
         else:
-            color = (255, 0 ,255)
+            color = (255, 0, 255)
         # draw landmark as ellipse
         lmX = landmarks[i]
         lmY = landmarks[i+68]

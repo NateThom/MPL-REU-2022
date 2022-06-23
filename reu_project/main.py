@@ -25,11 +25,11 @@ def image(imgNum):
     # manimpulate image - change functions to perform different manipulations
 #    skintoneblur.blurEyebrows(img, lms)
 #    skintoneblur.blurNose(img, lms)
-#    skintoneblur.blurEyes(img, lms)
-    draw_landmarks.drawLms(img, lms)
+    skintoneblur.blurEyes(img, lms)
+#    draw_landmarks.drawLms(img, lms)
 
     # save and close image - edit file path to save elsewhere
-    img.save('../Data_Augmentation/IMG_landmarks/' + str(imgNum).zfill(6)+'.jpg')
+    img.save('../Data_Augmentation/IMG_eye_blur/' + str(imgNum).zfill(6)+'.jpg')
     img.close()
 
 
