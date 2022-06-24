@@ -110,8 +110,11 @@ def cut_triangle(points, isolated_points):
         new_points.append(points[points_on_feature[0]])
         new_points.append(points[points_on_feature[1]])
         top_point = next(iter(set(check_points) - set(points_on_feature)))
-        midpoint_1 = (points[points_on_feature[0]] + points[top_point]) / 2
-        midpoint_2 = (points[points_on_feature[1]] + points[top_point]) / 2
+        k = 1 / 2
+        midpoint_1 = (int(points[points_on_feature[0]][0] + k * (points[top_point][0] - points[points_on_feature[0]][0]))),\
+                     int(points[points_on_feature[0]][1] + k * (points[top_point][1] - points[points_on_feature[0]][1]))
+        midpoint_2 = (int(points[points_on_feature[1]][0] + k * (points[top_point][0] - points[points_on_feature[1]][0]))), \
+                     int(points[points_on_feature[1]][1] + k * (points[top_point][1] - points[points_on_feature[1]][1]))
 
         # convert midpoint floats to ints
         new_points.append(midpoint_1)
@@ -133,8 +136,9 @@ def cut_triangle(points, isolated_points):
 
 def copy_triangles(t_source, t_dest, im_source, im_dest, isolated_points):
     i = 0
-    im_dest_copy = im_dest.copy()
-    mixed_clone = im_dest_copy.copy()
+    im_dest_copy = np.zeros(im_dest.shape, np.uint8)
+    feature_image_isolate = np.zeros(im_dest.shape, np.uint8)
+    seamless_clone_destination = im_dest.copy()
 
     for t in t_source:
         # crop rectangle around triangle
@@ -157,21 +161,19 @@ def copy_triangles(t_source, t_dest, im_source, im_dest, isolated_points):
         # take image, affine transform into destination triangle slice
         m = cv2.getAffineTransform(np.float32(source_pts), np.float32(dest_pts - dest_pts.min(axis=0)))
         triangle_slice = cv2.warpAffine(triangle_slice, m, (w, h))
-
-        new_dest_pts = cut_triangle(dest_pts, isolated_points)
-        x, y, w, h = cv2.boundingRect(new_dest_pts)
-
+        dest_pts = cut_triangle(dest_pts, isolated_points)
+        x, y, w, h = cv2.boundingRect(dest_pts)
         triangle_slice = cv2.resize(triangle_slice, (w, h), interpolation=cv2.INTER_AREA)
 
         # adjust destination points as necessary
-        new_dest_pts = new_dest_pts - new_dest_pts.min(axis=0)
+        dest_pts = dest_pts - dest_pts.min(axis=0)
 
         # create mask for pasting warped triangle
         mask = np.zeros((h, w, 3), np.uint8)
-        cv2.drawContours(mask, [new_dest_pts], -1, (255, 255, 255), -1, cv2.LINE_AA)
+        cv2.drawContours(mask, [dest_pts], -1, (255, 255, 255), -1, cv2.LINE_AA)
         mask = cv2.cvtColor(mask, cv2.COLOR_BGR2GRAY)
 
-        # invert mask, get background
+        # invert mask, get background for image
         roi = im_dest_copy[y:y+h, x:x+w]
         if roi.shape[:2] != mask.shape[:2]:
             mask = cv2.resize(mask, (roi.shape[1], roi.shape[0]), interpolation=cv2.INTER_AREA)
@@ -186,16 +188,42 @@ def copy_triangles(t_source, t_dest, im_source, im_dest, isolated_points):
         triangle_fg = cv2.bitwise_and(triangle_slice, triangle_slice, mask=mask)
 
         # paste warped triangle to the face mask with the other warped triangles
-        temp_image = cv2.bitwise_or(roi_bg, triangle_fg)
-        im_dest_copy[y:y+h, x:x+w] = temp_image
+        im_dest_copy[y:y+h, x:x+w] = cv2.bitwise_or(roi_bg, triangle_fg)
+
+        # get background for isolating feature
+        roi = feature_image_isolate[y:y+h, x:x+w]
+        roi_bg = cv2.bitwise_and(roi, roi, mask=mask_inv)
+
+        # paste warped triangle to the black background with other warped triangles
+        # to isolate the feature
+        feature_image_isolate[y:y+h, x:x+w] = cv2.bitwise_or(roi_bg, triangle_fg)
 
         i += 1
 
-    (h, w) = im_dest_copy.shape[:2]
-    center = (int(h / 2), int(w / 2))
-    mixed_clone = cv2.seamlessClone(mixed_clone, im_dest_copy, mask, center, cv2.MIXED_CLONE)
+    # create a mask for the feature using the isolated feature image
+    mask = cv2.cvtColor(feature_image_isolate, cv2.COLOR_BGR2GRAY)
+    ret, mask = cv2.threshold(mask, 0, 255, cv2.THRESH_BINARY)
+    contours, hierarchy = cv2.findContours(mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
 
-    return mixed_clone
+    # find the center of the mask using contours
+    boxes = []
+    for c in contours:
+        (x, y, w, h) = cv2.boundingRect(c)
+        boxes.append([x, y, x + w, y + h])
+
+    boxes = np.asarray(boxes)
+    left, top = np.min(boxes, axis=0)[:2]
+    right, bottom = np.max(boxes, axis=0)[2:]
+
+    center = (int((left + right) / 2), int((top + bottom) / 2))
+
+    # seamlessly clone the images together
+    mask_inv = cv2.bitwise_not(mask)
+    clear_out_feature = cv2.bitwise_and(seamless_clone_destination, seamless_clone_destination, mask=mask_inv)
+    seamless_clone_source = cv2.add(im_dest_copy, clear_out_feature)
+    final_image = cv2.seamlessClone(seamless_clone_source, seamless_clone_destination, mask, center, cv2.MONOCHROME_TRANSFER)
+
+    return final_image
 
 
 file = open('landmarks_highres_cnn.csv')
@@ -220,6 +248,13 @@ for r_source in rows:
 
             # find the triangulation for the destination image (to match in the source image)
             triangles_dest = delaunay_triangulation(points_dest)
+
+            # 1 to 17 is chin
+            # 18 to 27 is eyebrows
+            # 28 to 36 is nose
+            # 37 to 42 is left eye
+            # 43 to 48 is right eye
+            # 49 to 68 is mouth
             points_feature = points_dest[36:48]
             triangles_dest = isolate_feature(triangles_dest, points_feature)
             # draw_delaunay(triangles_dest, image_dest)
