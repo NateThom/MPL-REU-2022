@@ -1,9 +1,8 @@
 from PIL import Image
 import csv
 import skintoneblur
-import draw_landmarks
 
-# ask for number of images
+# ask for number of images - change line 9 for a different sized dataset
 numImg = (input("number of images requested: "))
 if numImg == 'all':
     numImg = 202599
@@ -25,11 +24,13 @@ def image(imgNum):
     # manimpulate image - change functions to perform different manipulations
 #    skintoneblur.blurEyebrows(img, lms)
 #    skintoneblur.blurNose(img, lms)
-    skintoneblur.blurEyes(img, lms)
+#    skintoneblur.blurEyes(img, lms)
+    skintoneblur.blurMouth(img, lms)
+#    skintoneblur.blurChin(img, lms)
 #    draw_landmarks.drawLms(img, lms)
 
     # save and close image - edit file path to save elsewhere
-    img.save('../Data_Augmentation/IMG_eye_blur/' + str(imgNum).zfill(6)+'.jpg')
+    img.save('../Data_Augmentation/IMG_mouth_blur/' + str(imgNum).zfill(6)+'.jpg')
     img.close()
 
 

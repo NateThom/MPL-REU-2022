@@ -3,9 +3,11 @@
 from math import floor, ceil, sqrt, atan, sin, cos
 
 # find the distance between two points using the hypotenuse they form
-def getHypotenuse(a, b):
+def getHyp(a, b):
+    # get the x and y distances between the two points
     xlen = b[0] - a[0]
     ylen = b[1] - a[1]
+    # good ol' Pythagoras
     hlen = sqrt(xlen**2 + ylen**2)
     return hlen
 
@@ -13,7 +15,7 @@ def getHypotenuse(a, b):
 # find rise and run for line of given length, perpendicular to given line. accepts two 2-tuples and an int.
 def getPerp(a, b, leng):
     # find hypotenuse of reference line
-    hlen = getHypotenuse(a, b)
+    hlen = getHyp(a, b)
     # find scale factor from reference line to desired line
     if leng == 0:
         factor = 0
@@ -37,32 +39,46 @@ def inBounds(pixels):
     return pixels
 
 
-# scale a set of points away from their center of mass
-def scalePolygon(pts, x, y, a, b):
-    # find the center point of the cluster
-    cent = (sum([pt[0] for pt in pts]) / len(pts), sum([pt[1] for pt in pts]) / len(pts))
-    cent = ((a[0]+b[0])/2, (a[1]+b[1])/2)
+# scale a set of points away from their midpoint
+def transformPolygon(pts, xS, yS, xT,yT, a, b):
+    # pts = the polygon to be scaled
+    # xS, yS = how far to scale horizontally and vertically (percentage as a float)
+    # xT, yT = the number of pixels by which to translate the polygon (integer)
+    # a, b = the endpoints of the polygon's local x-axis
+
+    # find the midpoint of the local x-axis
+    midPt = ((a[0]+b[0])/2, (a[1]+b[1])/2)
+    # find the sine and cosine of the angle of the cluster with respect to global x-axis
     rads = atan((b[1]-a[1]) / (b[0]-a[0]))
     rads_cos = cos(rads)
     rads_sin = sin(rads)
-    # move each point the given percentage away from the center
+
+    # for each point, rotate around the midpoint so that local x and y match global x and y,
+    # scale point away from the midpoint by the percentages given as parameters,
+    # and rotate back to the original angle
     for pt in range(len(pts)):
-        xDiff = pts[pt][0] - cent[0]
-        yDiff = pts[pt][1] - cent[1]
-        rX = cent[0] + rads_cos * xDiff + rads_sin * yDiff
-        rY = cent[1] - rads_sin * xDiff + rads_cos * yDiff
-        rX += ((rX - cent[0]) * x)
-        rY += ((rY - cent[1]) * y)
-        xDiff = rX - cent[0]
-        yDiff = rY - cent[1]
-        rX = cent[0] + rads_cos * xDiff - rads_sin * yDiff
-        rY = cent[1] + rads_sin * xDiff + rads_cos * yDiff + 3
+        # rotation around a point formula from Lyle Scott
+        # https://gist.github.com/LyleScott/e36e08bfb23b1f87af68c9051f985302
+        xDiff = pts[pt][0] - midPt[0]
+        yDiff = pts[pt][1] - midPt[1]
+        rX = midPt[0] + rads_cos * xDiff + rads_sin * yDiff
+        rY = midPt[1] - rads_sin * xDiff + rads_cos * yDiff
+        # move point away from midpoint the given percentage
+        rX += ((rX - midPt[0]) * xS) + xT
+        rY += ((rY - midPt[1]) * yS) + yT
+        # use new distance to the midpoint and reverse equation to rotate back
+        xDiff = rX - midPt[0]
+        yDiff = rY - midPt[1]
+        rX = midPt[0] + rads_cos * xDiff - rads_sin * yDiff
+        rY = midPt[1] + rads_sin * xDiff + rads_cos * yDiff + 3
         pts[pt] = (rX, rY)
+
+    # return the modified list of points
     return pts
 
 
 # fint the positive or negative distance from a point to a line
-def getLineDist(a, b, pt):
+def getLineSide(a, b, pt):
     dist = (a[0]-b[0])*(b[1]-pt[1])-(a[1]-b[1])*(b[0]-pt[0])
     # return distance
     if dist >= 0:
@@ -76,16 +92,16 @@ def getTri(a, b, c):
     # get width and triangle orientation
     width = range(floor(min(a[0], b[0], c[0])), ceil(max(a[0], b[0], c[0])))
     height = range(floor(min(a[1], b[1], c[1])), ceil(max(a[1], b[1], c[1])))
-    aSide = getLineDist(b, c, a)
-    bSide = getLineDist(c, a, b)
-    cSide = getLineDist(a, b, c)
+    aSide = getLineSide(b, c, a)
+    bSide = getLineSide(c, a, b)
+    cSide = getLineSide(a, b, c)
     # add every pixel within the triangle bounds to a list of pixels
     pixels = []
     for x in width:
         for y in height:
-            abSide = getLineDist(a, b, (x, y))
-            acSide = getLineDist(c, a, (x, y))
-            bcSide = getLineDist(b, c, (x, y))
+            abSide = getLineSide(a, b, (x, y))
+            acSide = getLineSide(c, a, (x, y))
+            bcSide = getLineSide(b, c, (x, y))
             if abSide == cSide and acSide == bSide and bcSide == aSide:
                 pixels.append((x, y))
     # ensure that pixels are within image bounds and return as list of 2-tuples
@@ -114,17 +130,16 @@ def blur(pixels, img, rad):
     for p in pixels:
         bPixels = []
         # grab every pixel in a box around current pixel
-
         for xrad in range(-rad, rad+1):
             for yRad in range(-rad, rad+1):
                 bPixels.append((p[0]+xrad, p[1]+yRad))
         # take average color of 5x5 box and apply to current pixel
-        bCol = pixelAverage(bPixels, img)
+        bCol = pxMean(bPixels, img)
         img.putpixel(p, bCol)
 
 
 # take the average of a set of sample pixels. accepts a list of 2-tuples
-def pixelAverage(pixels, img):
+def pxMean(pixels, img):
     # use inBounds function to make sure every sample pixel is in image bounds
     pixels = inBounds(pixels)
     # get colors from each sample pixel
