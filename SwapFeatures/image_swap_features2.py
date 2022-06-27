@@ -110,12 +110,12 @@ def cut_triangle(points, isolated_points):
         new_points.append(points[points_on_feature[0]])
         new_points.append(points[points_on_feature[1]])
         top_point = next(iter(set(check_points) - set(points_on_feature)))
-        k = 1 / 2
+
+        k = 1
         midpoint_1 = (int(points[points_on_feature[0]][0] + k * (points[top_point][0] - points[points_on_feature[0]][0]))),\
                      int(points[points_on_feature[0]][1] + k * (points[top_point][1] - points[points_on_feature[0]][1]))
         midpoint_2 = (int(points[points_on_feature[1]][0] + k * (points[top_point][0] - points[points_on_feature[1]][0]))), \
                      int(points[points_on_feature[1]][1] + k * (points[top_point][1] - points[points_on_feature[1]][1]))
-
         # convert midpoint floats to ints
         new_points.append(midpoint_1)
         new_points.append(midpoint_2)
@@ -126,12 +126,29 @@ def cut_triangle(points, isolated_points):
         for s in (set(check_points) - set(points_on_feature)):
             bottom_points.append(s)
 
-        midpoint_1 = (points[points_on_feature[0]] + points[bottom_points[0]]) / 2
-        midpoint_2 = (points[points_on_feature[0]] + points[bottom_points[1]]) / 2
+        k = 1
+        midpoint_1 = (int(points[points_on_feature[0]][0] + k * (points[bottom_points[0]][0] - points[points_on_feature[0]][0]))),\
+                     int(points[points_on_feature[0]][1] + k * (points[bottom_points[0]][1] - points[points_on_feature[0]][1]))
+        midpoint_2 = (int(points[points_on_feature[0]][0] + k * (points[bottom_points[1]][0] - points[points_on_feature[0]][0]))), \
+                     int(points[points_on_feature[0]][1] + k * (points[bottom_points[1]][1] - points[points_on_feature[0]][1]))
         new_points.append(midpoint_1)
         new_points.append(midpoint_2)
 
     return np.asarray(new_points).astype(int)
+
+
+def average_or(im1, im2):
+    return_image = cv2.bitwise_or(im1, im2)
+    temp_image = np.bitwise_and(im1, im2)
+    indices = np.nonzero(temp_image)
+    if indices[0].size and indices[1].size:
+        indices = np.vstack([indices[0], indices[1]])
+        indices = np.swapaxes(np.unique(indices, axis=1), 0, 1)
+        for i in indices:
+            # return_image[i[0]][i[1]] = im1[i[0]][i[1]] / 2 + im2[i[0]][i[1]] / 2
+            return_image[i[0]][i[1]] = np.maximum(im1[i[0]][i[1]], im2[i[0]][i[1]])
+
+    return return_image
 
 
 def copy_triangles(t_source, t_dest, im_source, im_dest, isolated_points):
@@ -188,7 +205,8 @@ def copy_triangles(t_source, t_dest, im_source, im_dest, isolated_points):
         triangle_fg = cv2.bitwise_and(triangle_slice, triangle_slice, mask=mask)
 
         # paste warped triangle to the face mask with the other warped triangles
-        im_dest_copy[y:y+h, x:x+w] = cv2.bitwise_or(roi_bg, triangle_fg)
+        temp_image = average_or(roi_bg, triangle_fg)
+        im_dest_copy[y:y + h, x:x + w] = temp_image
 
         # get background for isolating feature
         roi = feature_image_isolate[y:y+h, x:x+w]
@@ -203,9 +221,17 @@ def copy_triangles(t_source, t_dest, im_source, im_dest, isolated_points):
     # create a mask for the feature using the isolated feature image
     mask = cv2.cvtColor(feature_image_isolate, cv2.COLOR_BGR2GRAY)
     ret, mask = cv2.threshold(mask, 0, 255, cv2.THRESH_BINARY)
-    contours, hierarchy = cv2.findContours(mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+
+    # fill mask
+    mask_flood = mask.copy()
+    h, w = mask.shape[:2]
+    mask_empty = np.zeros((h+2, w+2), np.uint8)
+    cv2.floodFill(mask_flood, mask_empty, (0, 0), 255)
+    mask_flood = cv2.bitwise_not(mask_flood)
+    mask = mask | mask_flood
 
     # find the center of the mask using contours
+    contours, hierarchy = cv2.findContours(mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
     boxes = []
     for c in contours:
         (x, y, w, h) = cv2.boundingRect(c)
@@ -221,9 +247,15 @@ def copy_triangles(t_source, t_dest, im_source, im_dest, isolated_points):
     mask_inv = cv2.bitwise_not(mask)
     clear_out_feature = cv2.bitwise_and(seamless_clone_destination, seamless_clone_destination, mask=mask_inv)
     seamless_clone_source = cv2.add(im_dest_copy, clear_out_feature)
-    final_image = cv2.seamlessClone(seamless_clone_source, seamless_clone_destination, mask, center, cv2.MONOCHROME_TRANSFER)
+    final_image = cv2.seamlessClone(seamless_clone_source, seamless_clone_destination, mask, center, cv2.NORMAL_CLONE)
 
     return final_image
+
+
+def cut_attribute(im_source, im_dest, points):
+
+
+    return im_source
 
 
 file = open('landmarks_highres_cnn.csv')
@@ -243,18 +275,15 @@ for r_source in rows:
             image_dest = cv2.imread('img_high_res/' + r_dest[0])
             points_dest = plot_landmarks(r_dest)
 
-            # filter images - make sure points work with the image
-            # code here
-
             # find the triangulation for the destination image (to match in the source image)
             triangles_dest = delaunay_triangulation(points_dest)
 
             # 1 to 17 is chin
             # 18 to 27 is eyebrows
             # 28 to 36 is nose
-            # 37 to 42 is left eye
-            # 43 to 48 is right eye
-            # 49 to 68 is mouth
+            # 36 to 42 is left eye
+            # 43 to 47 is right eye
+            # 48 to 68 is mouth
             points_feature = points_dest[36:48]
             triangles_dest = isolate_feature(triangles_dest, points_feature)
             # draw_delaunay(triangles_dest, image_dest)
@@ -267,21 +296,12 @@ for r_source in rows:
             new_image_source = fill_skin_color_background(points_source, image_source)
 
             # copy attributes from source to destination
-            new_image_source = copy_triangles(triangles_source, triangles_dest, new_image_source, image_dest, points_feature)
-
-            # smooth out white lines
-            # code here
-
-            # smooth out lighting issues
-            # code here
-
-            # save destination image
-            # code here
+            transformed_image = copy_triangles(triangles_source, triangles_dest, new_image_source, image_dest, points_feature)
 
             # show images (if needed)
-            cv2.imshow('transformed image', new_image_source)
             cv2.imshow('image source', image_source)
             cv2.imshow('image dest', image_dest)
+            cv2.imshow('transformed image', transformed_image)
             cv2.waitKey(0)
 
 cv2.destroyAllWindows()
