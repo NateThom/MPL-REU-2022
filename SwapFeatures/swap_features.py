@@ -1,3 +1,5 @@
+import time
+
 import cv2
 import csv
 import numpy as np
@@ -248,6 +250,46 @@ def copy_triangles(t_source, t_dest, im_source, im_dest, isolated_points):
     return final_image
 
 
+def swap_attributes(source, dest):
+    if source != dest:
+        image_source = cv2.imread('img_high_res/' + source[0])
+        points_source = plot_landmarks(source)
+
+        image_dest = cv2.imread('img_high_res/' + dest[0])
+        points_dest = plot_landmarks(dest)
+
+        # find the triangulation for the destination image (to match in the source image)
+        triangles_dest = delaunay_triangulation(points_dest)
+
+        # 1 to 17 is chin
+        # 18 to 27 is eyebrows
+        # 28 to 36 is nose
+        # 36 to 42 is left eye
+        # 43 to 47 is right eye
+        # 48 to 68 is mouth
+        points_feature = points_dest[36:48]
+        triangles_dest = isolate_feature(triangles_dest, points_feature)
+        # draw_delaunay(triangles_dest, image_dest)
+
+        # copy triangulation to the source image
+        triangles_source = delaunay_copy(points_source, points_dest, triangles_dest)
+        # draw_delaunay(triangles_source, image_source)
+
+        # fill background of source image with skin color
+        new_image_source = fill_skin_color_background(points_source, image_source)
+
+        # copy attributes from source to destination
+        transformed_image = copy_triangles(triangles_source, triangles_dest, new_image_source, image_dest,
+                                           points_feature)
+
+        # save image
+        source_number = source[0].split('.')
+        filename = 'swapped_attributes/eyes/' + str(source_number[0]) + '_' + str(dest[0])
+        cv2.imwrite(filename, transformed_image)
+
+def pool_padding():
+
+
 file = open('landmarks_highres_fixed.csv')
 csvreader = csv.reader(file)
 next(csvreader)
@@ -256,41 +298,11 @@ rows = []
 for row in csvreader:
     rows.append(row)
 
+start_time = time.time()
+
+with Pool(4) as p:
+
+
 for r_source in rows:
     for r_dest in rows:
-        if r_source != r_dest:
-            image_source = cv2.imread('img_high_res/' + r_source[0])
-            points_source = plot_landmarks(r_source)
-
-            image_dest = cv2.imread('img_high_res/' + r_dest[0])
-            points_dest = plot_landmarks(r_dest)
-
-            # find the triangulation for the destination image (to match in the source image)
-            triangles_dest = delaunay_triangulation(points_dest)
-
-            # 1 to 17 is chin
-            # 18 to 27 is eyebrows
-            # 28 to 36 is nose
-            # 36 to 42 is left eye
-            # 43 to 47 is right eye
-            # 48 to 68 is mouth
-            points_feature = points_dest[36:48]
-            triangles_dest = isolate_feature(triangles_dest, points_feature)
-            # draw_delaunay(triangles_dest, image_dest)
-
-            # copy triangulation to the source image
-            triangles_source = delaunay_copy(points_source, points_dest, triangles_dest)
-            # draw_delaunay(triangles_source, image_source)
-
-            # fill background of source image with skin color
-            new_image_source = fill_skin_color_background(points_source, image_source)
-
-            # copy attributes from source to destination
-            transformed_image = copy_triangles(triangles_source, triangles_dest, new_image_source, image_dest, points_feature)
-
-            # save image
-            source_number = r_source[0].split('.')
-            filename = 'swapped_attributes/eyes/' + str(source_number[0]) + '_' + str(r_dest[0])
-            cv2.imwrite(filename, transformed_image)
-
-cv2.destroyAllWindows()
+        swap_attributes(r_source, r_dest)
