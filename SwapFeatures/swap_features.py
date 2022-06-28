@@ -178,7 +178,7 @@ def copy_triangles(t_source, t_dest, im_source, im_dest, isolated_points):
 
         # find the points that outline the triangle piece after cutting down
         # the area around the feature by some k
-        k = 1
+        k = 1 / 2
         dest_pts = cut_triangle(dest_pts, isolated_points, k)
         x, y, w, h = cv2.boundingRect(dest_pts)
 
@@ -288,10 +288,9 @@ for r_source in rows:
             # copy attributes from source to destination
             transformed_image = copy_triangles(triangles_source, triangles_dest, new_image_source, image_dest, points_feature)
 
-            # show images (if needed)
-            cv2.imshow('image source', image_source)
-            cv2.imshow('image dest', image_dest)
-            cv2.imshow('transformed image', transformed_image)
-            cv2.waitKey(0)
+            # save image
+            source_number = r_source[0].split('.')
+            filename = 'swapped_attributes/eyes/' + str(source_number[0]) + '_' + str(r_dest[0])
+            cv2.imwrite(filename, transformed_image)
 
 cv2.destroyAllWindows()
