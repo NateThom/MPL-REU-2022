@@ -113,6 +113,15 @@ def getTri(a, b, c):
     return inBounds(pixels)
 
 
+# get all pixels on lines between a set of points
+def getEdges(pts, width):
+    pxs = []
+    for pt in range(len(pts)):
+        for pt2 in range(len(pts[pt:])):
+            pxs.extend(getLine(pts[pt], pts[pt2], width))
+    return pxs
+
+
 # get all pixels on a straight line between two points. accepts two 2-tuples and an int
 def getLine(ptA, ptB, width):
     # find x, y, and hypotenuse lengths
@@ -132,17 +141,17 @@ def getLine(ptA, ptB, width):
 # blurs pixels in a square. accepts a list of 2-tuples
 def blur(pixels, img, rad):
     # for every pixel, get surrounding pixels and blur
-#     for p in pixels:
-#         bPixels = []
-#         # grab every pixel in a box around current pixel
-#         for xrad in range(-rad, rad+1):
-#             for yrad in range(-rad, rad+1):
-#                 if sqrt(xrad**2 + yrad**2) <= rad:
-#                     bPixels.append((p[0]+xrad, p[1]+yrad))
-#         # take average color of 5x5 box and apply to current pixel
-#         bCol = pxMean(bPixels, img)
-#         img.putpixel(p, bCol)
-    pass
+    for p in pixels:
+        bPixels = []
+        # grab every pixel in a box around current pixel
+        for xrad in range(-rad, rad+1):
+            for yrad in range(-rad, rad+1):
+                if sqrt(xrad**2 + yrad**2) <= rad:
+                    bPixels.append((p[0]+xrad, p[1]+yrad))
+        # take average color of 5x5 box and apply to current pixel
+        bCol = pxMean(bPixels, img)
+        img.putpixel(p, bCol)
+
 
 # take the average of a set of sample pixels. accepts a list of 2-tuples
 def pxMean(pixels, img):

@@ -5,37 +5,51 @@ import time
 from multiprocessing import Pool
 
 
+def compareImgs(imgs, img):
+    for cimg in imgs:
+        diffs = 5
+        for i in range(5):
+            if cimg[i] == img[i]:
+                diffs -= 1
+            if diffs == 1:
+                return imgs.index(cimg)
+
+
 def image(imgNum):
-    # open image and load into numpy array
-    pimg = Image.open(opath + str(imgNum).zfill(6) + '.jpg')
+    # open image and begin list of reference images
+    with Image.open(opath + str(imgNum).zfill(6) + '.jpg') as fimg:
+        rimgs = [fimg.copy()]
+        rnums = [(0, 0, 0, 0, 0)]
 
     # get correct row of landmarks file and convert to ints
     lms = [int(i) for i in landmarks[imgNum][1:]]
 
     # loop through binary for each feature
-    for eb in range(2):
-        for e in range(2):
+    for c in range(2):
+        for m in range(2):
             for n in range(2):
-                for m in range(2):
-                    for c in range(2):
-                        # make a clean copy of original image
-                        img = pimg.copy()
-                        # perform each required manipulation
-                        if eb == 1:
-                            skintoneblur.blurEyebrows(img, lms)
-                        if e == 1:
-                            skintoneblur.blurEyes(img, lms)
-                        if n == 1:
-                            skintoneblur.blurNose(img, lms)
-                        if m == 1:
-                            skintoneblur.blurMouth(img, lms)
+                for e in range(2):
+                    for eb in range(2):
+                        # get a clean copy of the closest reference image
+                        img = rimgs[compareImgs(rnums, (c, m, n, e, eb))].copy()
+                        # perform the earliest manipulation
                         if c == 1:
+                            skintoneblur.blurEyebrows(img, lms)
+                        elif m == 1:
+                            skintoneblur.blurEyes(img, lms)
+                        elif n == 1:
+                            skintoneblur.blurNose(img, lms)
+                        elif e == 1:
+                            skintoneblur.blurMouth(img, lms)
+                        elif eb == 1:
                             skintoneblur.blurChin(img, lms)
+                        # save image to reference image list
+                        if c == 0:
+                            rimgs.append(img)
+                            rnums.append((c, m, n, e, eb))
                         # save image in correct folder
-                        folder = str(eb) + str(e) + str(n) + str(m) + str(c) + '/'
+                        folder = str(c) + str(m) + str(n) + str(e) + str(eb) + '/'
                         img.save(spath+folder+str(imgNum).zfill(6)+'.jpg')
-
-    pimg.close()
 
 
 def main():
