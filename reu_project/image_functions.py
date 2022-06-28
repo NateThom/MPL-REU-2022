@@ -40,11 +40,16 @@ def inBounds(pixels):
 
 
 # scale a set of points away from their midpoint
-def transformPolygon(pts, xS, yS, xT,yT, a, b):
+def transformPolygon(pts, xS=0, yS=0, xT=0, yT=0, a=None, b=None):
     # pts = the polygon to be scaled
     # xS, yS = how far to scale horizontally and vertically (percentage as a float)
     # xT, yT = the number of pixels by which to translate the polygon (integer)
     # a, b = the endpoints of the polygon's local x-axis
+
+    # if a and b are not specified, use the first and last points in pts
+    if a == None and b == None:
+        a = pts[0]
+        b = pts[-1]
 
     # find the midpoint of the local x-axis
     midPt = ((a[0]+b[0])/2, (a[1]+b[1])/2)
@@ -77,7 +82,7 @@ def transformPolygon(pts, xS, yS, xT,yT, a, b):
     return pts
 
 
-# fint the positive or negative distance from a point to a line
+# find the positive or negative distance from a point to a line
 def getLineSide(a, b, pt):
     dist = (a[0]-b[0])*(b[1]-pt[1])-(a[1]-b[1])*(b[0]-pt[0])
     # return distance
@@ -127,16 +132,17 @@ def getLine(ptA, ptB, width):
 # blurs pixels in a square. accepts a list of 2-tuples
 def blur(pixels, img, rad):
     # for every pixel, get surrounding pixels and blur
-    for p in pixels:
-        bPixels = []
-        # grab every pixel in a box around current pixel
-        for xrad in range(-rad, rad+1):
-            for yRad in range(-rad, rad+1):
-                bPixels.append((p[0]+xrad, p[1]+yRad))
-        # take average color of 5x5 box and apply to current pixel
-        bCol = pxMean(bPixels, img)
-        img.putpixel(p, bCol)
-
+#     for p in pixels:
+#         bPixels = []
+#         # grab every pixel in a box around current pixel
+#         for xrad in range(-rad, rad+1):
+#             for yrad in range(-rad, rad+1):
+#                 if sqrt(xrad**2 + yrad**2) <= rad:
+#                     bPixels.append((p[0]+xrad, p[1]+yrad))
+#         # take average color of 5x5 box and apply to current pixel
+#         bCol = pxMean(bPixels, img)
+#         img.putpixel(p, bCol)
+    pass
 
 # take the average of a set of sample pixels. accepts a list of 2-tuples
 def pxMean(pixels, img):
