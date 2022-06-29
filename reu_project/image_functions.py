@@ -54,7 +54,10 @@ def transformPolygon(pts, xS=0, yS=0, xT=0, yT=0, a=None, b=None):
     # find the midpoint of the local x-axis
     midPt = ((a[0]+b[0])/2, (a[1]+b[1])/2)
     # find the sine and cosine of the angle of the cluster with respect to global x-axis
-    rads = atan((b[1]-a[1]) / (b[0]-a[0]))
+    if b[0] - a[0] != 0:
+        rads = atan((b[1]-a[1]) / (b[0]-a[0]))
+    else:
+        rads = 1.57079632679
     rads_cos = cos(rads)
     rads_sin = sin(rads)
 
