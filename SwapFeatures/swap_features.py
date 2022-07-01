@@ -1,8 +1,11 @@
+import itertools
+import random
 import time
-
 import cv2
 import csv
 import numpy as np
+from multiprocessing import Pool
+from itertools import combinations
 
 
 def plot_landmarks(curr_row):
@@ -106,6 +109,7 @@ def cut_triangle(points, isolated_points, k):
     # case when all points on the feature we want
     if num == 3:
         return points
+        # return np.asarray([])
 
     # case when points contain two points of the feature we want
     if num == 2:
@@ -149,7 +153,7 @@ def average_or(im1, im2):
     return return_image
 
 
-def copy_triangles(t_source, t_dest, im_source, im_dest, isolated_points):
+def copy_triangles(t_source, t_dest, im_source, im_dest, isolated_points, source, dest):
     im_dest_copy = im_dest.copy()
     feature_image_isolate = np.zeros(im_dest.shape, np.uint8)
     seamless_clone_destination = im_dest.copy()
@@ -176,53 +180,64 @@ def copy_triangles(t_source, t_dest, im_source, im_dest, isolated_points):
 
         # take image, affine transform into destination triangle slice
         m = cv2.getAffineTransform(np.float32(source_pts), np.float32(dest_pts - dest_pts.min(axis=0)))
-        triangle_slice = cv2.warpAffine(triangle_slice, m, (w, h))
+        try:
+            triangle_slice = cv2.warpAffine(triangle_slice, m, (w, h))
+        except:
+            print(str(source) + " /// " + str(dest))
+            break
 
         # find the points that outline the triangle piece after cutting down
         # the area around the feature by some k
         k = 1 / 2
         dest_pts = cut_triangle(dest_pts, isolated_points, k)
-        x, y, w, h = cv2.boundingRect(dest_pts)
+        if dest_pts.size != 0:
+            x, y, w, h = cv2.boundingRect(dest_pts)
 
-        # adjust destination points as necessary
-        dest_pts = dest_pts - dest_pts.min(axis=0)
+            # adjust destination points as necessary
+            dest_pts = dest_pts - dest_pts.min(axis=0)
 
-        # create mask for pasting warped triangle
-        mask = np.zeros((h, w, 3), np.uint8)
-        cv2.drawContours(mask, [dest_pts], -1, (255, 255, 255), -1, cv2.LINE_AA)
-        mask = cv2.cvtColor(mask, cv2.COLOR_BGR2GRAY)
+            # create mask for pasting warped triangle
+            mask = np.zeros((h, w, 3), np.uint8)
+            cv2.drawContours(mask, [dest_pts], -1, (255, 255, 255), -1, cv2.LINE_AA)
+            mask = cv2.cvtColor(mask, cv2.COLOR_BGR2GRAY)
 
-        # cut down triangle slice based on the mask
-        x_new = x - x_new
-        y_new = y - y_new
-        triangle_slice = triangle_slice[y_new:y_new+h, x_new:x_new+w]
+            # cut down triangle slice based on the mask
+            x_new = x - x_new
+            y_new = y - y_new
+            try:
+                triangle_slice = triangle_slice[y_new:y_new+h, x_new:x_new+w]
+            except:
+                print(str(source) + " //// " + str(dest))
+                break
 
-        # check dimensions based on destination image
-        if x < 0 or y < 0:
-            x = y = 0
+            # check dimensions based on destination image
 
-        roi = im_dest_copy[y:y+h, x:x+w]
-        if roi.shape[:2] != mask.shape[:2] or roi.shape[:2] != triangle_slice.shape[:2]:
-            mask = cv2.resize(mask, (roi.shape[1], roi.shape[0]), interpolation=cv2.INTER_AREA)
-            triangle_slice = cv2.resize(triangle_slice, (roi.shape[1], roi.shape[0]), interpolation=cv2.INTER_AREA)
+            roi = im_dest_copy[y:y+h, x:x+w]
+            if roi.shape[:2] != mask.shape[:2] or roi.shape[:2] != triangle_slice.shape[:2]:
+                try:
+                    mask = cv2.resize(mask, (roi.shape[1], roi.shape[0]), interpolation=cv2.INTER_AREA)
+                except:
+                    print(str(source) + " ///// " + str(dest))
+                    break
+                triangle_slice = cv2.resize(triangle_slice, (roi.shape[1], roi.shape[0]), interpolation=cv2.INTER_AREA)
 
-        # invert mask, get background for image
-        mask_inv = cv2.bitwise_not(mask)
-        roi_bg = cv2.bitwise_and(roi, roi, mask=mask_inv)
+            # invert mask, get background for image
+            mask_inv = cv2.bitwise_not(mask)
+            roi_bg = cv2.bitwise_and(roi, roi, mask=mask_inv)
 
-        # get foreground for image
-        triangle_fg = cv2.bitwise_and(triangle_slice, triangle_slice, mask=mask)
+            # get foreground for image
+            triangle_fg = cv2.bitwise_and(triangle_slice, triangle_slice, mask=mask)
 
-        # paste warped triangle to the face mask with the other warped triangles
-        im_dest_copy[y:y + h, x:x + w] = average_or(roi_bg, triangle_fg)
+            # paste warped triangle to the face mask with the other warped triangles
+            im_dest_copy[y:y + h, x:x + w] = average_or(roi_bg, triangle_fg)
 
-        # get background for isolating feature
-        roi = feature_image_isolate[y:y+h, x:x+w]
-        roi_bg = cv2.bitwise_and(roi, roi, mask=mask_inv)
+            # get background for isolating feature
+            roi = feature_image_isolate[y:y+h, x:x+w]
+            roi_bg = cv2.bitwise_and(roi, roi, mask=mask_inv)
 
-        # paste warped triangle to the black background with other warped triangles
-        # to isolate the feature
-        feature_image_isolate[y:y+h, x:x+w] = cv2.bitwise_or(roi_bg, triangle_fg)
+            # paste warped triangle to the black background with other warped triangles
+            # to isolate the feature
+            feature_image_isolate[y:y+h, x:x+w] = cv2.bitwise_or(roi_bg, triangle_fg)
 
     # create a mask for the feature using the isolated feature image
     mask = cv2.cvtColor(feature_image_isolate, cv2.COLOR_BGR2GRAY)
@@ -250,59 +265,81 @@ def copy_triangles(t_source, t_dest, im_source, im_dest, isolated_points):
     return final_image
 
 
-def swap_attributes(source, dest):
-    if source != dest:
-        image_source = cv2.imread('img_high_res/' + source[0])
-        points_source = plot_landmarks(source)
+def swap_attributes(image_pair):
+    source, dest = image_pair
+    image_source = cv2.imread('/home/guest/MPL-REU-2022/male/' + source[0])
 
-        image_dest = cv2.imread('img_high_res/' + dest[0])
-        points_dest = plot_landmarks(dest)
+    points_source = plot_landmarks(source)
 
-        # find the triangulation for the destination image (to match in the source image)
-        triangles_dest = delaunay_triangulation(points_dest)
+    image_dest = cv2.imread('/home/guest/MPL-REU-2022/female/' + dest[0])
+    points_dest = plot_landmarks(dest)
 
-        # 1 to 17 is chin
-        # 18 to 27 is eyebrows
-        # 28 to 36 is nose
-        # 36 to 42 is left eye
-        # 43 to 47 is right eye
-        # 48 to 68 is mouth
-        points_feature = points_dest[36:48]
-        triangles_dest = isolate_feature(triangles_dest, points_feature)
-        # draw_delaunay(triangles_dest, image_dest)
+    # find the triangulation for the destination image (to match in the source image)
+    triangles_dest = delaunay_triangulation(points_dest)
 
-        # copy triangulation to the source image
-        triangles_source = delaunay_copy(points_source, points_dest, triangles_dest)
-        # draw_delaunay(triangles_source, image_source)
+    # 1 to 16 is chin
+    # 17 to 26 is eyebrows
+    # 27 to 36 is nose
+    # 36 to 42 is left eye
+    # 43 to 47 is right eye
+    # 48 to 68 is mouth
+    points_feature = points_dest[36:48]
+    triangles_dest = isolate_feature(triangles_dest, points_feature)
+    # draw_delaunay(triangles_dest, image_dest)
 
-        # fill background of source image with skin color
-        new_image_source = fill_skin_color_background(points_source, image_source)
+    # copy triangulation to the source image
+    triangles_source = delaunay_copy(points_source, points_dest, triangles_dest)
+    # draw_delaunay(triangles_source, image_source)
 
-        # copy attributes from source to destination
-        transformed_image = copy_triangles(triangles_source, triangles_dest, new_image_source, image_dest,
-                                           points_feature)
+    # fill background of source image with skin color
+    new_image_source = fill_skin_color_background(points_source, image_source)
 
-        # save image
-        source_number = source[0].split('.')
-        filename = 'swapped_attributes/eyes/' + str(source_number[0]) + '_' + str(dest[0])
-        cv2.imwrite(filename, transformed_image)
+    # copy attributes from source to destination
+    # try:
+    transformed_image = copy_triangles(triangles_source, triangles_dest, new_image_source, image_dest,
+                                        points_feature, source[0], dest[0])
+    #     # save image
+    #     source_number = source[0].split('.')
+    #     filename = '/home/guest/MPL-REU-2022/swapped_attributes/mouth/male->female/' + str(source_number[0]) + '_' + str(dest[0])
+    #     cv2.imwrite(filename, transformed_image)
+    # except ValueError:
+    #     print(str(source[0]) + " // " + str(dest[0]))
+    #     pass
 
-def pool_padding():
+    cv2.imshow('s', image_source)
+    cv2.imshow('d', image_dest)
+    cv2.imshow('t', transformed_image)
+    cv2.waitKey(0)
 
 
-file = open('landmarks_highres_fixed.csv')
-csvreader = csv.reader(file)
-next(csvreader)
+def find_image_pairs(source, dest):
+    pairs = []
+    for s in source:
+        dest_images = random.sample(dest, 11)
+        for d in dest_images:
+            pairs.append([s, d])
 
-rows = []
-for row in csvreader:
-    rows.append(row)
+    return pairs
+
+
+file_source = open('landmarks_male_zero.csv')
+csvreader = csv.reader(file_source)
+rows_source = list(csvreader)
+
+file_dest = open('landmarks_female_zero.csv')
+csvreader = csv.reader(file_dest)
+rows_dest = list(csvreader)
+
+# pair = [rows_source[35396], rows_dest[87474]]
+# swap_attributes(pair)
+
+image_pairs = find_image_pairs(rows_source, rows_dest)
 
 start_time = time.time()
+# with Pool(18) as p:
+#     p.map(swap_attributes, image_pairs)
 
-with Pool(4) as p:
+for p in image_pairs:
+    swap_attributes(p)
 
-
-for r_source in rows:
-    for r_dest in rows:
-        swap_attributes(r_source, r_dest)
+print(time.time() - start_time)
