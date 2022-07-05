@@ -1,6 +1,6 @@
 import random
 import time
-from cv2 import cv2
+import cv2
 import csv
 import numpy as np
 from multiprocessing import Pool
@@ -22,13 +22,13 @@ def delaunay_triangulation(points):
 
     # bound the face in a rectangle and use rect to subdivide the plane
     bounding_rect = cv2.boundingRect(hull)
-    subdiv = cv2.Subdiv2D(bounding_rect)
+    sub_div = cv2.Subdiv2D(bounding_rect)
 
     for p in points:
-        subdiv.insert(p)
+        sub_div.insert(p)
 
     # get the triangles
-    triangles = subdiv.getTriangleList()
+    triangles = sub_div.getTriangleList()
     return np.array(triangles, dtype=np.int32)
 
 
@@ -101,8 +101,8 @@ def cut_triangle(points, isolated_points, k, attribute):
     # case when all points on the feature we want
     if num == 3:
         # return empty array when mouth
-        if attribute == 'mouth':
-            return np.asarray([])
+        # if attribute == 'mouth':
+        #     return np.asarray([])
 
         # return points when everything but mouth
         return points
@@ -144,6 +144,7 @@ def average_or(im1, im2):
     return_image = cv2.bitwise_or(im1, im2)
     temp_image = np.bitwise_and(im1, im2)
     indices = np.nonzero(temp_image)
+
     if indices[0].size and indices[1].size:
         indices = np.vstack([indices[0], indices[1]])
         indices = np.swapaxes(np.unique(indices, axis=1), 0, 1)
@@ -195,61 +196,53 @@ def copy_triangles(t_source, t_dest, im_source, im_dest, isolated_points, source
             dest_pts = cut_triangle(dest_pts, isolated_points, k, attribute)
 
             # check that we want to copy this triangle
-            if dest_pts.size != 0:
-                x, y, w, h = cv2.boundingRect(dest_pts)
+            x, y, w, h = cv2.boundingRect(dest_pts)
 
-                # adjust destination points as necessary
-                dest_pts = dest_pts - dest_pts.min(axis=0)
+            # adjust destination points as necessary
+            dest_pts = dest_pts - dest_pts.min(axis=0)
 
-                # create mask for pasting warped triangle
-                mask = np.zeros((h, w, 3), np.uint8)
-                cv2.drawContours(mask, [dest_pts], -1, (255, 255, 255), -1, cv2.LINE_AA)
-                mask = cv2.cvtColor(mask, cv2.COLOR_BGR2GRAY)
+            # create mask for pasting warped triangle
+            mask = np.zeros((h, w, 3), np.uint8)
+            cv2.drawContours(mask, [dest_pts], -1, (255, 255, 255), -1, cv2.LINE_AA)
+            mask = cv2.cvtColor(mask, cv2.COLOR_BGR2GRAY)
 
-                # cut down triangle slice based on the mask
-                x_new = x - x_new
-                y_new = y - y_new
+            # cut down triangle slice based on the mask
+            x_new = x - x_new
+            y_new = y - y_new
+            try:
+                triangle_slice = triangle_slice[y_new:y_new + h, x_new:x_new + w]
+            except:
+                print(str(source) + " //// " + str(dest))
+                break
+
+            # check dimensions based on destination image
+            roi = im_dest_copy[y:y + h, x:x + w]
+            if roi.shape[:2] != mask.shape[:2] or roi.shape[:2] != triangle_slice.shape[:2]:
                 try:
-                    triangle_slice = triangle_slice[y_new:y_new + h, x_new:x_new + w]
+                    mask = cv2.resize(mask, (roi.shape[1], roi.shape[0]), interpolation=cv2.INTER_AREA)
                 except:
-                    print(str(source) + " //// " + str(dest))
+                    print(str(source) + " ///// " + str(dest))
                     break
+                triangle_slice = cv2.resize(triangle_slice, (roi.shape[1], roi.shape[0]),
+                                            interpolation=cv2.INTER_AREA)
 
-                # check dimensions based on destination image
-                roi = im_dest_copy[y:y + h, x:x + w]
-                if roi.shape[:2] != mask.shape[:2] or roi.shape[:2] != triangle_slice.shape[:2]:
-                    try:
-                        mask = cv2.resize(mask, (roi.shape[1], roi.shape[0]), interpolation=cv2.INTER_AREA)
-                    except:
-                        print(str(source) + " ///// " + str(dest))
-                        break
-                    triangle_slice = cv2.resize(triangle_slice, (roi.shape[1], roi.shape[0]),
-                                                interpolation=cv2.INTER_AREA)
+            # invert mask, get background for image
+            mask_inv = cv2.bitwise_not(mask)
+            roi_bg = cv2.bitwise_and(roi, roi, mask=mask_inv)
 
-                # cv2.imshow('ts', triangle_slice)
-                # cv2.waitKey(0)
+            # get foreground for image
+            triangle_fg = cv2.bitwise_and(triangle_slice, triangle_slice, mask=mask)
 
-                # invert mask, get background for image
-                mask_inv = cv2.bitwise_not(mask)
-                roi_bg = cv2.bitwise_and(roi, roi, mask=mask_inv)
+            # paste warped triangle to the face mask with the other warped triangles
+            im_dest_copy[y:y + h, x:x + w] = average_or(roi_bg, triangle_fg)
 
-                # get foreground for image
-                triangle_fg = cv2.bitwise_and(triangle_slice, triangle_slice, mask=mask)
+            # get background for isolating feature
+            roi = feature_image_isolate[y:y + h, x:x + w]
+            roi_bg = cv2.bitwise_and(roi, roi, mask=mask_inv)
 
-                # paste warped triangle to the face mask with the other warped triangles
-                temp_image = average_or(roi_bg, triangle_fg)
-                im_dest_copy[y:y + h, x:x + w] = temp_image
-
-                # get background for isolating feature
-                roi = feature_image_isolate[y:y + h, x:x + w]
-                roi_bg = cv2.bitwise_and(roi, roi, mask=mask_inv)
-
-                # paste warped triangle to the black background with other warped triangles
-                # to isolate the feature
-                feature_image_isolate[y:y + h, x:x + w] = cv2.bitwise_or(roi_bg, triangle_fg)
-
-            else:
-                print('nooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooo')
+            # paste warped triangle to the black background with other warped triangles
+            # to isolate the feature
+            feature_image_isolate[y:y + h, x:x + w] = cv2.bitwise_or(roi_bg, triangle_fg)
 
     # create a mask for the feature using the isolated feature image
     mask = cv2.cvtColor(feature_image_isolate, cv2.COLOR_BGR2GRAY)
@@ -330,7 +323,7 @@ def swap_attributes(image_pair):
 def find_image_pairs(source, dest):
     pairs = []
     for s in source:
-        dest_images = random.sample(dest, 11)
+        dest_images = random.sample(dest, 8)
         for d in dest_images:
             pairs.append([s, d])
 
@@ -348,7 +341,10 @@ rows_dest = list(csvreader)
 image_pairs = find_image_pairs(rows_source, rows_dest)
 
 start_time = time.time()
-with Pool(18) as p:
-    p.map(swap_attributes, image_pairs)
+with Pool(18) as pool:
+    pool.map(swap_attributes, image_pairs)
+
+# for ip in image_pairs:
+#     swap_attributes(ip)
 
 print(time.time() - start_time)
