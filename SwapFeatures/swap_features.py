@@ -114,13 +114,13 @@ def cut_triangle(points, isolated_points, k, attribute):
         top_point = next(iter(set(check_points) - set(points_on_feature)))
         midpoint_1 = (int(
             points[points_on_feature[0]][0] + k * (points[top_point][0] - points[points_on_feature[0]][0]))), \
-                     int(points[points_on_feature[0]][1] + k * (points[top_point][1] - points[points_on_feature[0]][1]))
+            int(points[points_on_feature[0]][1] + k * (points[top_point][1] - points[points_on_feature[0]][1]))
         midpoint_2 = (int(
             points[points_on_feature[1]][0] + k * (points[top_point][0] - points[points_on_feature[1]][0]))), \
-                     int(points[points_on_feature[1]][1] + k * (points[top_point][1] - points[points_on_feature[1]][1]))
+            int(points[points_on_feature[1]][1] + k * (points[top_point][1] - points[points_on_feature[1]][1]))
         # convert midpoint floats to ints
-        new_points.append(midpoint_1)
         new_points.append(midpoint_2)
+        new_points.append(midpoint_1)
 
     # case when points contain one points of the feature we want
     if num == 1:
@@ -130,12 +130,10 @@ def cut_triangle(points, isolated_points, k, attribute):
 
         midpoint_1 = (int(
             points[points_on_feature[0]][0] + k * (points[bottom_points[0]][0] - points[points_on_feature[0]][0]))), \
-                     int(points[points_on_feature[0]][1] + k * (
-                                 points[bottom_points[0]][1] - points[points_on_feature[0]][1]))
+            int(points[points_on_feature[0]][1] + k * (points[bottom_points[0]][1] - points[points_on_feature[0]][1]))
         midpoint_2 = (int(
             points[points_on_feature[0]][0] + k * (points[bottom_points[1]][0] - points[points_on_feature[0]][0]))), \
-                     int(points[points_on_feature[0]][1] + k * (
-                                 points[bottom_points[1]][1] - points[points_on_feature[0]][1]))
+            int(points[points_on_feature[0]][1] + k * (points[bottom_points[1]][1] - points[points_on_feature[0]][1]))
         new_points.append(midpoint_1)
         new_points.append(midpoint_2)
 
@@ -225,7 +223,8 @@ def copy_triangles(t_source, t_dest, im_source, im_dest, isolated_points, source
                     except:
                         print(str(source) + " ///// " + str(dest))
                         break
-                    triangle_slice = cv2.resize(triangle_slice, (roi.shape[1], roi.shape[0]), interpolation=cv2.INTER_AREA)
+                    triangle_slice = cv2.resize(triangle_slice, (roi.shape[1], roi.shape[0]),
+                                                interpolation=cv2.INTER_AREA)
 
                 # cv2.imshow('ts', triangle_slice)
                 # cv2.waitKey(0)
@@ -238,7 +237,8 @@ def copy_triangles(t_source, t_dest, im_source, im_dest, isolated_points, source
                 triangle_fg = cv2.bitwise_and(triangle_slice, triangle_slice, mask=mask)
 
                 # paste warped triangle to the face mask with the other warped triangles
-                im_dest_copy[y:y + h, x:x + w] = average_or(roi_bg, triangle_fg)
+                temp_image = average_or(roi_bg, triangle_fg)
+                im_dest_copy[y:y + h, x:x + w] = temp_image
 
                 # get background for isolating feature
                 roi = feature_image_isolate[y:y + h, x:x + w]
@@ -315,22 +315,16 @@ def swap_attributes(image_pair):
     new_image_source = fill_skin_color_background(points_source, image_source)
 
     # copy attributes from source to destination
-    # try:
-    transformed_image = copy_triangles(triangles_source, triangles_dest, new_image_source, image_dest,
+    try:
+        transformed_image = copy_triangles(triangles_source, triangles_dest, new_image_source, image_dest,
                                        points_feature, source[0], dest[0], attribute_type)
-    #     # save image
-    #     source_number = source[0].split('.')
-    #     filename = '/home/guest/MPL-REU-2022/swapped_attributes/mouth/male->female/' + str(source_number[0]) + '_' + str(dest[0])
-    #     cv2.imwrite(filename, transformed_image)
-    # except ValueError:
-    #     print(str(source[0]) + " // " + str(dest[0]))
-    #     pass
-
-    cv2.imshow('s', image_source)
-    cv2.imshow('d', image_dest)
-    name = str(source[0]) + "_" + str(dest[0])
-    cv2.imshow(name, transformed_image)
-    cv2.waitKey(0)
+        # save image
+        source_number = source[0].split('.')
+        filename = '/home/guest/MPL-REU-2022/swapped_attributes/eyes/female->male/' + str(source_number[0]) + '_' + str(dest[0])
+        cv2.imwrite(filename, transformed_image)
+    except ValueError:
+        print(str(source[0]) + " // " + str(dest[0]))
+        pass
 
 
 def find_image_pairs(source, dest):
@@ -354,10 +348,7 @@ rows_dest = list(csvreader)
 image_pairs = find_image_pairs(rows_source, rows_dest)
 
 start_time = time.time()
-# with Pool(18) as p:
-#     p.map(swap_attributes, image_pairs)
-
-for ip in image_pairs:
-    swap_attributes(ip)
+with Pool(18) as p:
+    p.map(swap_attributes, image_pairs)
 
 print(time.time() - start_time)
