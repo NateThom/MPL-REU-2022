@@ -44,10 +44,10 @@ def blurEyes(img, lms):
     epts = [(lms[lm], lms[lm+68]) for lm in range(36, 48)]
     # left and right eye regions must be scaled to fill the orbital
     # use the eyebrows as a measure for orbital size and find the percentage by which to scale in x and y
-    lY = getHyp(ebpts[3], epts[2]) / getHyp(epts[2], epts[4]) + 0.4
-    lX = getHyp(ebpts[0], ebpts[4]) / getHyp(epts[0], epts[3]) - 0.8
-    rY = getHyp(ebpts[6], epts[7]) / getHyp(epts[7], epts[11]) + 0.4
-    rX = getHyp(ebpts[5], ebpts[9]) / getHyp(epts[6], epts[9]) -0.8
+    lY = getHyp(ebpts[3], epts[2]) / max(getHyp(epts[2], epts[4]), 1) + 0.4
+    lX = getHyp(ebpts[0], ebpts[4]) / max(getHyp(epts[0], epts[3]), 1) - 0.8
+    rY = getHyp(ebpts[6], epts[7]) / max(getHyp(epts[7], epts[11]), 1) + 0.4
+    rX = getHyp(ebpts[5], ebpts[9]) / max(getHyp(epts[6], epts[9]), 1) - 0.8
     # scale and translate eye regions to fill the orbital
     lpts = transformPolygon(epts[:6], xS=lX, yS=lY, xT=-4, yT=2, a=epts[0], b=epts[3])
     rpts = transformPolygon(epts[6:], xS=rX, yS=rY, xT=4, yT=2, a=epts[6], b=epts[9])
@@ -154,8 +154,7 @@ def blurChin(img, lms):
     cpts = transformPolygon(cpts, 0.2, 0.1, 0, -6, cpts[0], cpts[-1])
     # get six triangular subregions of the chin region
     trpl = [(cpts[n], cpts[n+1], rpt) for n in range(6)]
-    ctris = [getTri(*trpl[0]), getTri(*trpl[0]), getTri(*trpl[0]),
-             getTri(*trpl[0]), getTri(*trpl[0]), getTri(*trpl[0])]
+    ctris = [getTri(*trpl[t]) for t in range(6)]
     # dictionary correlating subregion to reference point for sampling color
     samplePts = {0:0, 1:1, 2:2, 3:4, 4:5, 5:6}
     # for each triangular subregion, get the average color of a line along it, and fill

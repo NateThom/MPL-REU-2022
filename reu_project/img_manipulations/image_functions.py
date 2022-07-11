@@ -17,7 +17,7 @@ def getPerp(a, b, leng):
     # find hypotenuse of reference line
     hlen = getHyp(a, b)
     # find scale factor from reference line to desired line
-    if leng == 0:
+    if leng == 0 or hlen == 0:
         factor = 0
     else:
         factor = 1/ (hlen / leng)
@@ -129,9 +129,12 @@ def getEdges(pts, width):
 def getLine(ptA, ptB, width):
     # find x, y, and hypotenuse lengths
     xlen, ylen = (ptA[0]-ptB[0], ptA[1]-ptB[1])
-    hlen = sqrt(xlen**2 + ylen**2)/(width/2)+0.00000001
+    hlen = sqrt(xlen**2 + ylen**2)/(width/2)
     # calculate corners of the line
-    x, y = [(0-lens)/hlen for lens in [ylen, xlen]]
+    if hlen == 0:
+        x, y = 0, 0
+    else:
+        x, y = [(0-lens)/hlen for lens in [ylen, xlen]]
     corners = [(ptA[0]+x,ptA[1]-y), (ptA[0]-x,ptA[1]+y),
                (ptB[0]+x,ptB[1]-y), (ptB[0]-x,ptB[1]+y)]
     # get pixels using getTri

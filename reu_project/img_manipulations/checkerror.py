@@ -1,9 +1,9 @@
 import csv
 
 def checkErrors():
-    with open('../Data_Augmentation/imagepoints/landmarks_scaled.csv') as f:
+    with open('../../Data_Augmentation/imagepoints/landmarks_scaled.csv') as f:
         orig = list(csv.reader(f))
-    with open('../Data_Augmentation/imagepoints/landmarks_highres.csv') as f:
+    with open('../../Data_Augmentation/imagepoints/landmarks_highres.csv') as f:
         landmarks = list(csv.reader(f))
 
     errors = []

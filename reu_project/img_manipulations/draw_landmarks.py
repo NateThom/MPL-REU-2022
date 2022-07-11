@@ -26,16 +26,16 @@ def drawLms(img, landmarks):
 
 
 # import landmarks
-with open('../Data_Augmentation/imagepoints/landmarks_highres.csv') as f:
+with open('../../Data_Augmentation/imagepoints/landmarks_highres.csv') as f:
     reader = csv.reader(f)
     global landmarks
     landmarks = list(reader)
     del reader
 
 # open image and begin list of reference images
-for imgNum in range(50900, 51000):
-    with Image.open('../Data_Augmentation/IMG_HiRes/' + str(imgNum).zfill(6) + '.jpg') as img:
+for imgNum in [200305]:
+    with Image.open('../../Data_Augmentation/IMG_HiRes/' + str(imgNum).zfill(6) + '.jpg') as img:
         lms = [int(landmarks[imgNum][i]) for i in range(1 , len(landmarks[imgNum]))]
         drawLms(img, lms)
-        img.save('../Data_Augmentation/samples_etc/IMG_landmarks/'
+        img.save('../../Data_Augmentation/samples_etc/IMG_landmarks/'
                  + str(imgNum).zfill(6) + '.jpg')

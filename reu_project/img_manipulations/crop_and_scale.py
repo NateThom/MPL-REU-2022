@@ -1,16 +1,17 @@
 import csv
 from math import floor
+from PIL import Image
 
 
 def cropScale():
     print('\n\nCropping and Scaling')
     # get crop points
-    with open('../Data_Augmentation/imagepoints/crop_points.csv') as f:
+    with open('../../Data_Augmentation/imagepoints/crop_points.csv') as f:
         cpts = list(csv.reader(f))
-    with open('../Data_Augmentation/imagepoints/landmarks_68.csv') as f:
+    with open('../../Data_Augmentation/imagepoints/landmarks_68.csv') as f:
         lms = list(csv.reader(f))
     # crop and scale each landmark
-    newFile = open('../Data_Augmentation/imagepoints/landmarks_scaled.csv', 'w', newline='')
+    newFile = open('../../Data_Augmentation/imagepoints/landmarks_scaled.csv', 'w', newline='')
     writer = csv.writer(newFile)
     writer.writerow(lms[0])
     for i in range(1, 202600):
@@ -34,6 +35,22 @@ def cropScale():
         writer.writerow(lms[i])
     newFile.close()
 
-cropScale()
+
+def scaleimg():
+    with open('../../missing.txt', 'r') as f:
+        missing = {}
+        for line in f:
+            l = int(line.rstrip())
+            missing[l] = l
+
+    for m in missing:
+        with Image.open('../../Data_Augmentation/samples_etc/IMG_errors_orig/'
+                        +str(m).zfill(6)+'.jpg') as i:
+            i = i.resize((224, 224))
+            i.save('../../Data_Augmentation/samples_etc/IMG_errors_orig/'
+                   +str(m).zfill(6)+'.jpg')
+
+
+scaleimg()
 
 
