@@ -101,8 +101,8 @@ def cut_triangle(points, isolated_points, k, attribute):
     # case when all points on the feature we want
     if num == 3:
         # return empty array when mouth
-        # if attribute == 'mouth':
-        #     return np.asarray([])
+        if attribute == 'mouth':
+            return np.asarray([])
 
         # return points when everything but mouth
         return points
@@ -195,54 +195,55 @@ def copy_triangles(t_source, t_dest, im_source, im_dest, isolated_points, source
             k = 1 / 2
             dest_pts = cut_triangle(dest_pts, isolated_points, k, attribute)
 
-            # check that we want to copy this triangle
-            x, y, w, h = cv2.boundingRect(dest_pts)
+            if dest_pts.size != 0:
+                # check that we want to copy this triangle
+                x, y, w, h = cv2.boundingRect(dest_pts)
 
-            # adjust destination points as necessary
-            dest_pts = dest_pts - dest_pts.min(axis=0)
+                # adjust destination points as necessary
+                dest_pts = dest_pts - dest_pts.min(axis=0)
 
-            # create mask for pasting warped triangle
-            mask = np.zeros((h, w, 3), np.uint8)
-            cv2.drawContours(mask, [dest_pts], -1, (255, 255, 255), -1, cv2.LINE_AA)
-            mask = cv2.cvtColor(mask, cv2.COLOR_BGR2GRAY)
+                # create mask for pasting warped triangle
+                mask = np.zeros((h, w, 3), np.uint8)
+                cv2.drawContours(mask, [dest_pts], -1, (255, 255, 255), -1, cv2.LINE_AA)
+                mask = cv2.cvtColor(mask, cv2.COLOR_BGR2GRAY)
 
-            # cut down triangle slice based on the mask
-            x_new = x - x_new
-            y_new = y - y_new
-            try:
-                triangle_slice = triangle_slice[y_new:y_new + h, x_new:x_new + w]
-            except:
-                print(str(source) + " //// " + str(dest))
-                break
-
-            # check dimensions based on destination image
-            roi = im_dest_copy[y:y + h, x:x + w]
-            if roi.shape[:2] != mask.shape[:2] or roi.shape[:2] != triangle_slice.shape[:2]:
+                # cut down triangle slice based on the mask
+                x_new = x - x_new
+                y_new = y - y_new
                 try:
-                    mask = cv2.resize(mask, (roi.shape[1], roi.shape[0]), interpolation=cv2.INTER_AREA)
+                    triangle_slice = triangle_slice[y_new:y_new + h, x_new:x_new + w]
                 except:
-                    print(str(source) + " ///// " + str(dest))
+                    print(str(source) + " //// " + str(dest))
                     break
-                triangle_slice = cv2.resize(triangle_slice, (roi.shape[1], roi.shape[0]),
-                                            interpolation=cv2.INTER_AREA)
 
-            # invert mask, get background for image
-            mask_inv = cv2.bitwise_not(mask)
-            roi_bg = cv2.bitwise_and(roi, roi, mask=mask_inv)
+                # check dimensions based on destination image
+                roi = im_dest_copy[y:y + h, x:x + w]
+                if roi.shape[:2] != mask.shape[:2] or roi.shape[:2] != triangle_slice.shape[:2]:
+                    try:
+                        mask = cv2.resize(mask, (roi.shape[1], roi.shape[0]), interpolation=cv2.INTER_AREA)
+                    except:
+                        print(str(source) + " ///// " + str(dest))
+                        break
+                    triangle_slice = cv2.resize(triangle_slice, (roi.shape[1], roi.shape[0]),
+                                                interpolation=cv2.INTER_AREA)
 
-            # get foreground for image
-            triangle_fg = cv2.bitwise_and(triangle_slice, triangle_slice, mask=mask)
+                # invert mask, get background for image
+                mask_inv = cv2.bitwise_not(mask)
+                roi_bg = cv2.bitwise_and(roi, roi, mask=mask_inv)
 
-            # paste warped triangle to the face mask with the other warped triangles
-            im_dest_copy[y:y + h, x:x + w] = average_or(roi_bg, triangle_fg)
+                # get foreground for image
+                triangle_fg = cv2.bitwise_and(triangle_slice, triangle_slice, mask=mask)
 
-            # get background for isolating feature
-            roi = feature_image_isolate[y:y + h, x:x + w]
-            roi_bg = cv2.bitwise_and(roi, roi, mask=mask_inv)
+                # paste warped triangle to the face mask with the other warped triangles
+                im_dest_copy[y:y + h, x:x + w] = average_or(roi_bg, triangle_fg)
 
-            # paste warped triangle to the black background with other warped triangles
-            # to isolate the feature
-            feature_image_isolate[y:y + h, x:x + w] = cv2.bitwise_or(roi_bg, triangle_fg)
+                # get background for isolating feature
+                roi = feature_image_isolate[y:y + h, x:x + w]
+                roi_bg = cv2.bitwise_and(roi, roi, mask=mask_inv)
+
+                # paste warped triangle to the black background with other warped triangles
+                # to isolate the feature
+                feature_image_isolate[y:y + h, x:x + w] = cv2.bitwise_or(roi_bg, triangle_fg)
 
     # create a mask for the feature using the isolated feature image
     mask = cv2.cvtColor(feature_image_isolate, cv2.COLOR_BGR2GRAY)
@@ -265,7 +266,12 @@ def copy_triangles(t_source, t_dest, im_source, im_dest, isolated_points, source
     mask_inv = cv2.bitwise_not(mask)
     clear_out_feature = cv2.bitwise_and(seamless_clone_destination, seamless_clone_destination, mask=mask_inv)
     seamless_clone_source = cv2.add(im_dest_copy, clear_out_feature)
-    final_image = cv2.seamlessClone(seamless_clone_source, seamless_clone_destination, mask, center, cv2.NORMAL_CLONE)
+    final_image = seamless_clone_destination
+    try:
+        final_image = cv2.seamlessClone(seamless_clone_source, seamless_clone_destination, mask, center, cv2.MONOCHROME_TRANSFER)
+    except:
+        print(str(source[0]) + " / " + str(dest[0]))
+        pass
 
     return final_image
 
@@ -288,11 +294,11 @@ def choose_attribute(points, attribute):
 
 def swap_attributes(image_pair):
     source, dest = image_pair
-    image_source = cv2.imread('/home/guest/MPL-REU-2022/female/' + source[0])
+    image_source = cv2.imread('/home/guest/MPL-REU-2022/male/' + source[0])
     points_source = plot_landmarks(source, image_source)
-    image_dest = cv2.imread('/home/guest/MPL-REU-2022/male/' + dest[0])
+    image_dest = cv2.imread('/home/guest/MPL-REU-2022/female/' + dest[0])
     points_dest = plot_landmarks(dest, image_dest)
-    attribute_type = 'eyes'
+    attribute_type = 'mouth'
 
     # find the triangulation for the destination image (to match in the source image)
     triangles_dest = delaunay_triangulation(points_dest)
@@ -313,7 +319,7 @@ def swap_attributes(image_pair):
                                        points_feature, source[0], dest[0], attribute_type)
         # save image
         source_number = source[0].split('.')
-        filename = '/home/guest/MPL-REU-2022/swapped_attributes/eyes/female->male/' + str(source_number[0]) + '_' + str(dest[0])
+        filename = '/home/guest/MPL-REU-2022/swapped_attributes/mouth/male->female_monochrome/' + str(source_number[0]) + '_' + str(dest[0])
         cv2.imwrite(filename, transformed_image)
     except ValueError:
         print(str(source[0]) + " // " + str(dest[0]))
@@ -323,20 +329,24 @@ def swap_attributes(image_pair):
 def find_image_pairs(source, dest):
     pairs = []
     for s in source:
-        dest_images = random.sample(dest, 8)
+        dest_images = random.sample(dest, 11)
         for d in dest_images:
             pairs.append([s, d])
 
     return pairs
 
 
-file_source = open('landmarks_female.csv')
+file_source = open('landmarks_male.csv')
 csvreader = csv.reader(file_source)
 rows_source = list(csvreader)
 
-file_dest = open('landmarks_male.csv')
+file_dest = open('landmarks_female.csv')
 csvreader = csv.reader(file_dest)
 rows_dest = list(csvreader)
+
+# image_pair = (rows_source[70469], rows_dest[32162])
+# 167867.jpg // 055435.jpg: mouth, mixed clone, male->female
+# swap_attributes(image_pair)
 
 image_pairs = find_image_pairs(rows_source, rows_dest)
 
