@@ -77,7 +77,7 @@ def main():
     spath = '../../Data_Augmentation/augmented_data/'
 
     #  uncomment this section if you have a list of specific images to process.
-    #  add    if i in missing    to list comprehension in line 91
+    #  add    if i in missing    to list comprehension in line 92
     # with open('../../missing.txt', 'r') as f:
     #     missing = {}
     #     for line in f:

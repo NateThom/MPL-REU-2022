@@ -47,7 +47,6 @@ class CelebA_Dataset(Dataset):
         img_gender = [int(v > 0) for v in img_gender]
         self.labels = dict(zip(img_names, img_gender))
         path = '../../Data_Augmentation/IMG_HiRes/'
-        numImgs = 2048
         self.image_names = []
         split_min = floor(split[0] * 202599) + 1
         split_max = floor(split[1] * 202599) + 1
@@ -73,6 +72,7 @@ def show_batch(b):
     cols, rows = 4, 4
     for i in range(16):
         img, lbl = imgs[i], lbls[i]
+        lbl = list(lbl).index(1)
         fig.add_subplot(rows, cols, i+1)
         plt.title(labels_map[int(lbl)], fontsize=10, y=0.92)
         plt.axis("off")
@@ -80,8 +80,9 @@ def show_batch(b):
     plt.show()
 
 
-# occluded_dataset = Occluded_Dataset((0, 0.001))
-# dataloader = DataLoader(occluded_dataset, batch_size=16, num_workers=8, drop_last=False, shuffle=True)
-#
-# for batch in dataloader:
-#    show_batch(batch)
+def make_sample():
+    celeba_dataset = CelebA_Dataset((0, 0.001))
+    dataloader = DataLoader(celeba_dataset, batch_size=16, num_workers=8, drop_last=False, shuffle=True)
+
+    for batch in dataloader:
+       show_batch(batch)
