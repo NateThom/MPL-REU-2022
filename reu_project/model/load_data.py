@@ -1,6 +1,7 @@
 import pandas as pd
 import torch
 from math import floor
+import random
 from torch.utils.data import Dataset, DataLoader
 import torchvision
 from torchvision.transforms import functional as TF
@@ -9,7 +10,9 @@ import matplotlib.pyplot as plt
 
 class Occluded_Dataset(Dataset):
     def __init__(self, split, transform=None):
-        self.transform = transform
+        augs = transform[0]
+        aug_sets = (2 ** len([i for i in augs if i == 1])) - 1
+        portion = transform[1]
         attr_df = pd.read_csv('../../../CelebA/Anno/list_attr_celeba.csv')
         img_names = attr_df.image_name.values.tolist()
         img_names = [int(v[:-4]) for v in img_names]
@@ -20,10 +23,26 @@ class Occluded_Dataset(Dataset):
         self.image_names = []
         split_min = floor(split[0] * 202599) + 1
         split_max = floor(split[1] * 202599) + 1
-        for f in range(32):
+        total = 2 * (split_max-split_min)
+        augmented = int(total * portion) // aug_sets
+        augmented += (0, 1)[augmented < (split_max - split_min)]
+        unaugmented = int(total - (augmented * aug_sets))
+        random.seed(a=128)
+        surplus_aug = (augmented * aug_sets) - total
+        ticker = 0
+        for f in range(1, 32):
             folder = '{0:05b}'.format(f)+'/'
-            for im in range(split_min, split_max):
-                self.image_names.append(path+folder+str(im).zfill(6)+'.jpg')
+            selected = True
+            for a in range(5):
+                if folder[a] == '1' and augs[a] == 0:
+                    selected = False
+            if selected:
+                ticker += 1
+                comp = 1 if surplus_aug > 0 and ticker <= surplus_aug else 0
+                for im in random.sample(range(split_min, split_max), augmented - comp):
+                    self.image_names.append(path+folder+str(im).zfill(6)+'.jpg')
+        for im in random.sample(range(split_min, split_max), max(unaugmented, 0)):
+            self.image_names.append(path+'00000/'+str(im).zfill(6)+'.jpg')
 
     def __len__(self):
         return len(self.image_names)
@@ -62,6 +81,38 @@ class CelebA_Dataset(Dataset):
         image = TF.convert_image_dtype(image, torch.float)
         gender = self.labels[int(self.image_names[idx][-10:-4])]
         label = torch.tensor([1-gender, gender])
+        if self.transform == 'test':
+            return image, label, img_path[-10:]
+        return image, label
+
+
+class LFW_Dataset(Dataset):
+    def __init__(self, split, transform=None):
+        self.transform = transform
+        attr_df = pd.read_csv('../../../LFW/lfw_gender_labels.csv')
+        img_names = attr_df.image_name.values.tolist()
+        img_names = [int(v[:-4]) for v in img_names]
+        img_gender = attr_df.gender.values.tolist()
+        img_gender = [int(v > 0) for v in img_gender]
+        self.labels = dict(zip(img_names, img_gender))
+        path = '../../../LFW/IMG_numbered/'
+        self.image_names = []
+        split_min = floor(split[0] * 13233) + 1
+        split_max = floor(split[1] * 13233) + 1
+        for im in range(split_min, split_max):
+            self.image_names.append(path+str(im).zfill(6)+'.jpg')
+
+    def __len__(self):
+        return len(self.image_names)
+
+    def __getitem__(self, idx):
+        img_path = self.image_names[idx]
+        image = torchvision.io.read_image(img_path)
+        image = TF.convert_image_dtype(image, torch.float)
+        gender = self.labels[int(self.image_names[idx][-10:-4])]
+        label = torch.tensor([1-gender, gender])
+        if self.transform == 'test':
+            return image, label, img_path[-10:]
         return image, label
 
 
@@ -86,3 +137,4 @@ def make_sample():
 
     for batch in dataloader:
        show_batch(batch)
+

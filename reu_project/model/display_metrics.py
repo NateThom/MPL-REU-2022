@@ -6,11 +6,12 @@ from matplotlib.ticker import MultipleLocator, FormatStrFormatter
 
 
 def main():
-    path_to_data = "../../trained_models/data/"
-    models = os.listdir(path_to_data)
-    models.sort()
+    path_to_data = "../../trained_models/train_metrics/"
+    models = [i for i in os.listdir(path_to_data) if i[0] != '.']
     for i in range(len(models)):
         models[i] = models[i][:-9]
+    models = list(set(models))
+    models.sort()
     model_dict = dict(zip(range(len(models)), models))
     for i in range(len(models)):
         print(i, model_dict[i])

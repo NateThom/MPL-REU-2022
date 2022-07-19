@@ -7,7 +7,7 @@ import time
 import datetime
 from math import floor
 import csv
-from load_data import CelebA_Dataset, Occluded_Dataset
+from load_data import CelebA_Dataset, Occluded_Dataset, LFW_Dataset
 from params_inquiry import get_params
 
 
@@ -48,7 +48,7 @@ class ResNet50(nn.Module):
 
 
 # get accuracy and loss during training, validation, and testing
-def get_acc_and_loss(model, inputs, labels):
+def get_acc_and_loss(model, inputs, labels, save=False):
     # forward propagate the model
     model_output = model.forward(inputs)
     # get predictions
@@ -60,14 +60,20 @@ def get_acc_and_loss(model, inputs, labels):
     # get accuracy by comparing each prediction to the correct label
     correct = 0
     size = len(predictions)
+    acc_list = []
     for lbl in range(size):
         pred = predictions[lbl]
         if int(labels[lbl][pred]) == 1:
             correct += 1
+        if save:
+            acc_list.append(1) if int(labels[lbl][pred]) == 1 else acc_list.append(0)
     acc = correct / size
 
     # return the accuracy and loss
-    return acc, loss
+    if not save:
+        return acc, loss
+    else:
+        return acc_list
 
 
 # run a progress bar
@@ -179,7 +185,8 @@ def train_loop(model, train_loader, val_loader, epoch, device):
 def test_loop(model, test_loader, device):
     # set model to evaluate mode
     model.eval()
-    # begin record for testing accuracy
+    # begin records for testing accuracy
+    acc_list = []
     acc = 0
     # begin record for progress bar
     tickcount = 0
@@ -188,25 +195,30 @@ def test_loop(model, test_loader, device):
         # loop trough batches in test data loader
         for batch_index, batch in enumerate(test_loader):
             # get inputs and labels and send them to cuda if cuda is available
-            inputs, labels = batch
+            inputs, labels, imgs = batch
             inputs = inputs.to(device)
             labels = labels.to(device)
 
             # update record for testing accuracy
-            acc += get_acc_and_loss(model, inputs, labels)[0]
-            
+            batch_acc = get_acc_and_loss(model, inputs, labels, save=True)
+            for val in range(len(batch_acc)):
+                acc_list.append([imgs[val], str(batch_acc[val])])
+            acc += len([i for i in batch_acc if i == 1])
+
             # update loading bar
             tickcount = progress((batch_index + 1) / len(test_loader), tickcount)
             
         # find average accuracy from records
-        acc = "%.1f" % (acc * 100 / len(test_loader))
+        acc = "%.1f" % (acc * 100 / len(acc_list))
         
         # print testing accuracy
         print(f"Accuracy: {acc}%")
 
+        return acc_list
+
 
 # big function that does all the stuff you tell it to!
-def model_functions(train_set, mdl_name, new_file, train, test, load, save,
+def model_functions(train_set, transform, mdl_name, new_file, train, test, load, save,
                     train_split, val_split, test_split, ilr, lrs,
                     path_to_saved_models, batch_size, device):
 
@@ -215,7 +227,7 @@ def model_functions(train_set, mdl_name, new_file, train, test, load, save,
 
     # if loading is specified, load the given data to the model
     if load:
-        model.load_state_dict(torch.load(path_to_saved_models + mdl_name + '.mdl'))
+        model.load_state_dict(torch.load(path_to_saved_models+'models/'+mdl_name + '.mdl'))
 
     # send the model to cuda if cuda is available
     model = model.to(device)
@@ -223,7 +235,7 @@ def model_functions(train_set, mdl_name, new_file, train, test, load, save,
     # if training, load the train and validation datasets and run the train loop
     if train:
         # load the training dataset. which dataset to load is a function parameter.
-        train_dataset = train_set(train_split)
+        train_dataset = train_set(train_split, transform=transform)
         train_loader = DataLoader(train_dataset, batch_size=batch_size,
                                   num_workers=10, drop_last=False, shuffle=True)
 
@@ -244,7 +256,7 @@ def model_functions(train_set, mdl_name, new_file, train, test, load, save,
         # status report
         print(f"TRAINING {mdl_name}\n=========================\n")
         # loop training until validation loss stops decreasing
-        while (epoch_index < 5 or min([float(r) for r in val_loss_record[-5:]]) <= low_vloss)\
+        while (epoch_index < 4 or min([float(r) for r in val_loss_record[-4:]]) <= low_vloss)\
                 and epoch_index < 16:
             # increment epoch, status report and start timer
             epoch_index += 1
@@ -274,32 +286,39 @@ def model_functions(train_set, mdl_name, new_file, train, test, load, save,
                         data.append([i+1, trn_acc_record[i], trn_loss_record[i],
                                      val_acc_record[i], val_loss_record[i], time_record[i]])
                     # save the data list to a csv file
-                    with open(path_to_saved_models+'data/'+mdl_name+'_data.csv', 'w+') as dataFile:
+                    with open(path_to_saved_models+'train_metrics/'+mdl_name+'_data.csv', 'w+') as dataFile:
                         writer = csv.writer(dataFile)
                         for line in data:
                             writer.writerow(line)
                     # save the model. if a new file is specified, save to new_file
                     if new_file is None:
-                        torch.save(model.state_dict(), path_to_saved_models+mdl_name+'.mdl')
+                        torch.save(model.state_dict(), path_to_saved_models+'models/'+mdl_name+'.mdl')
                     else:
                         torch.save(model.state_dict(), path_to_saved_models+new_file+'.mdl')
 
     # if testing, load the test dataset and run the test loop
     if test:
         # load test dataset
-        test_dataset = CelebA_Dataset(test_split)
+        test_dataset = LFW_Dataset(test_split, transform='test')
         test_loader = DataLoader(test_dataset, batch_size=batch_size,
                                  num_workers=6, drop_last=False, shuffle=False)
 
         # status report
-        print("TESTING")
+        print(f"\nTESTING {mdl_name}")
 
-        # run test loop
-        test_loop(model, test_loader, device)
+        # run test loop and return record of accuracy
+        acc_list = test_loop(model, test_loader, device)
 
-        # eventually testing data will be saved to a file.
+        # save testing data to a file
         if save:
-            pass
+            if new_file is None:
+                save_name = mdl_name
+            else:
+                save_name = new_file
+            with open(path_to_saved_models+'test_records/'+save_name+'_test.csv', 'w+') as testFile:
+                writer = csv.writer(testFile)
+                for line in acc_list:
+                    writer.writerow(line)
         
 
 def main():
@@ -307,14 +326,13 @@ def main():
     path_to_saved_models = "../../trained_models/"
 
     batch_size = 64
-
     # select processor. if there is more than one gpu, ask which one to use
     if torch.cuda.is_available():
         device = "cuda"
         gpus = torch.cuda.device_count()
         if gpus > 1:
             while device not in [f"cuda:{n}" for n in range(gpus)]:
-                device = "cuda:" + input(f"Select select gpu (0 - {gpus-1}): ")
+                device = "cuda:" + input(f"Select gpu (0 - {gpus-1}): ")
     else:
         device = 'cpu'
 
@@ -325,7 +343,10 @@ def main():
 
     # run each model using given parameters
     for current_model in model_params:
+        # try:
         model_functions(*current_model, path_to_saved_models, batch_size, device)
+        # except:
+        #     print("Model operations failed.")
 
 
 if __name__ == "__main__":
@@ -426,22 +447,18 @@ if __name__ == "__main__":
 # Currently, all validation and testing is done using the unaugmented CelebA. This can be
 # easily changed later if we need to.
 #
-# model_functions() will eventually have a segment which will save testing data to a file.
-# currently testing data is printed to stdout, but not saved anywhere. There is a comment
-# in lines 298-300, where this segment will be.
-#
 # Configuration variables are defined in lines 306-321. Change these as needed.
 #
 # Cuda will check your number of gpus and ask which one you want to use. Enter an integer in
 # the range given. Indexing begins at 0.
 #
-# Number of epochs is no longer set, but instead is determined by validation loss during
+# Number of epochs is not set, but instead is determined by validation loss during
 # training. If validation loss does not decrease for five consecutive epochs, training stops.
 # The validation loss check does not begin until epoch 3, due to erratic initial validation loss.
 #
 # When saving the model, model_functions() will only save the state at the epoch with the lowest
-# validation loss. This prevents the above five-epoch training buffer from affecting the saved
-# model if overfitting occurs.
+# validation loss. This prevents the aforementioned five-epoch training buffer from affecting
+# the saved model if overfitting occurs.
 #
 # Model class is defined in lines 12-45. The PyTorch ResNet50 implementation is used as a base.
 #
@@ -452,5 +469,5 @@ if __name__ == "__main__":
 # step-wise scheduler, and an initial learning rate of 0.0001. See lines 37-45.
 #
 # PyCharm has a bug which prevents the use of the inquiry module in get_params(). To bypass
-# this bug, set your run configuration to emulate terminal in output console. If you are
-# running this program in terminal, ignore this note.
+# this bug, set your run configuration to emulate terminal in output console (wrench icon to
+# the left of the output console). If you are running this program in terminal, ignore this note.
