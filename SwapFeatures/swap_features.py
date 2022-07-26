@@ -86,7 +86,7 @@ def fill_skin_color_background(points, image):
     return new_image
 
 
-def cut_triangle(points, isolated_points, k, attribute):
+def cut_triangle(points, isolated_points, k):
     num = 0
     check_points = [0, 1, 2]
     points_on_feature = []
@@ -100,11 +100,7 @@ def cut_triangle(points, isolated_points, k, attribute):
 
     # case when all points on the feature we want
     if num == 3:
-        # return empty array when mouth
-        if attribute == 'mouth':
-            return np.asarray([])
-
-        # return points when everything but mouth
+        # return points
         return points
 
     # case when points contain two points of the feature we want
@@ -154,7 +150,7 @@ def average_or(im1, im2):
     return return_image
 
 
-def copy_triangles(t_source, t_dest, im_source, im_dest, isolated_points, source, dest, attribute):
+def copy_triangles(t_source, t_dest, im_source, im_dest, isolated_points, source, dest):
     im_dest_copy = im_dest.copy()
     feature_image_isolate = np.zeros(im_dest.shape, np.uint8)
     seamless_clone_destination = im_dest.copy()
@@ -192,8 +188,8 @@ def copy_triangles(t_source, t_dest, im_source, im_dest, isolated_points, source
 
             # find the points that outline the triangle piece after cutting down
             # the area around the feature by some k
-            k = 1 / 2
-            dest_pts = cut_triangle(dest_pts, isolated_points, k, attribute)
+            k = 1
+            dest_pts = cut_triangle(dest_pts, isolated_points, k)
 
             if dest_pts.size != 0:
                 # check that we want to copy this triangle
@@ -268,37 +264,43 @@ def copy_triangles(t_source, t_dest, im_source, im_dest, isolated_points, source
     seamless_clone_source = cv2.add(im_dest_copy, clear_out_feature)
     final_image = seamless_clone_destination
     try:
-        final_image = cv2.seamlessClone(seamless_clone_source, seamless_clone_destination, mask, center, cv2.MONOCHROME_TRANSFER)
+        final_image = cv2.seamlessClone(seamless_clone_source, seamless_clone_destination, mask, center, cv2.NORMAL_CLONE)
     except:
-        print(str(source[0]) + " / " + str(dest[0]))
+        print(str(source) + " / " + str(dest))
         pass
 
     return final_image
 
 
 def choose_attribute(points, attribute):
-    match attribute:
-        case 'chin':
-            return points[6:11]
-        case 'jaw':
-            return points[:17]
-        case 'eyebrows':
-            return points[17:26]
-        case 'nose':
-            return points[27:37]
-        case 'eyes':
-            return points[36:48]
-        case 'mouth':
-            return points[48:]
+    attribute_dict = {0: 'chin', 1: 'jaw', 2: 'eyebrows', 3: 'nose', 4: 'eyes', 5: 'mouth', 6: 'cheek'}
+
+    for a in attribute:
+        match attribute_dict[a]:
+            case 'chin':
+                return points[6:11]
+            case 'jaw':
+                return points[:17]
+            case 'eyebrows':
+                return points[17:26]
+            case 'nose':
+                return points[27:37]
+            case 'eyes':
+                return points[36:48]
+            case 'mouth':
+                return points[48:]
+            case 'cheek':
+                return [points[48], points[54]]
 
 
 def swap_attributes(image_pair):
     source, dest = image_pair
-    image_source = cv2.imread('/home/guest/MPL-REU-2022/male/' + source[0])
+    image_source = cv2.imread(image_source_path + source[0])
     points_source = plot_landmarks(source, image_source)
-    image_dest = cv2.imread('/home/guest/MPL-REU-2022/female/' + dest[0])
+    image_dest = cv2.imread(image_dest_path + dest[0])
     points_dest = plot_landmarks(dest, image_dest)
-    attribute_type = 'mouth'
+    attribute_type = [5]
+    # {0: 'chin', 1: 'jaw', 2: 'eyebrows', 3: 'nose', 4: 'eyes', 5: 'mouth', 6: 'cheek'}
 
     # find the triangulation for the destination image (to match in the source image)
     triangles_dest = delaunay_triangulation(points_dest)
@@ -316,45 +318,55 @@ def swap_attributes(image_pair):
     # copy attributes from source to destination
     try:
         transformed_image = copy_triangles(triangles_source, triangles_dest, new_image_source, image_dest,
-                                       points_feature, source[0], dest[0], attribute_type)
+                                           points_feature, source[0], dest[0])
         # save image
         source_number = source[0].split('.')
-        filename = '/home/guest/MPL-REU-2022/swapped_attributes/mouth/male->female_monochrome/' + str(source_number[0]) + '_' + str(dest[0])
+        filename = final_images_path + str(source_number[0]) + '_' + str(dest[0])
         cv2.imwrite(filename, transformed_image)
+        # cv2.imshow('s', image_source)
+        # cv2.imshow('d', image_dest)
+        # cv2.imshow('t', transformed_image)
+        # cv2.waitKey(0)
     except ValueError:
         print(str(source[0]) + " // " + str(dest[0]))
         pass
 
 
 def find_image_pairs(source, dest):
+    """Documentation here"""
     pairs = []
-    for s in source:
-        dest_images = random.sample(dest, 11)
-        for d in dest_images:
+    for d in dest:
+        source_images = random.sample(source, 11)
+        for s in source_images:
             pairs.append([s, d])
 
     return pairs
 
 
-file_source = open('landmarks_male.csv')
+# Modify the lines below to fit your system and file organization
+file_source = open('landmarks_female.csv')
+file_dest = open('landmarks_male.csv')
+image_source_path = '/home/guest/MPL-REU-2022/female/'
+image_dest_path = '/home/guest/MPL-REU-2022/male/'
+final_images_path = '/home/guest/MPL-REU-2022/swapped_attributes/mouth/female->male/'
+
+# Dataset generation begins here, open landmark files
 csvreader = csv.reader(file_source)
 rows_source = list(csvreader)
-
-file_dest = open('landmarks_female.csv')
 csvreader = csv.reader(file_dest)
 rows_dest = list(csvreader)
 
+# image_pair = (rows_source[362], rows_dest[489])
 # image_pair = (rows_source[70469], rows_dest[32162])
 # 167867.jpg // 055435.jpg: mouth, mixed clone, male->female
 # swap_attributes(image_pair)
 
+# randomly generate image pairs
 image_pairs = find_image_pairs(rows_source, rows_dest)
-
 start_time = time.time()
+
+# with 18 CPUs, run the main swap_attributes function
 with Pool(18) as pool:
     pool.map(swap_attributes, image_pairs)
-
-# for ip in image_pairs:
-#     swap_attributes(ip)
 
 print(time.time() - start_time)

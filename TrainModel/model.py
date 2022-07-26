@@ -43,37 +43,48 @@ class ResNet50(nn.Module):
         elif self.lrs == 'exp':
             for g in self.optimizer.param_groups:
                 g['lr'] = self.ilr * (0.1 ** epoch)
-        else:
-            pass
 
 
 # get accuracy and loss during training, validation, and testing
-def get_acc_and_loss(model, inputs, labels):
+def get_acc_and_loss(model, inputs, labels, save=False):
     # forward propagate the model
     model_output = model.forward(inputs)
+
     # get predictions
     prediction_probabilities = model.softmax_layer(model_output)
     predictions = prediction_probabilities.argmax(1)
+
     # get loss
     loss = model.loss(prediction_probabilities, labels.float())
 
     # get accuracy by comparing each prediction to the correct label
     correct = 0
     size = len(predictions)
+    acc_list = []
+
     for lbl in range(size):
         pred = predictions[lbl]
         if int(labels[lbl][pred]) == 1:
             correct += 1
+            if save:
+                acc_list.append(1)
+        else:
+            if save:
+                acc_list.append(0)
     acc = correct / size
 
     # return the accuracy and loss
-    return acc, loss
+    if not save:
+        return acc, loss
+    else:
+        return acc_list
 
 
 # run a progress bar
 def progress(prog, tick_count):
     # find the new number of progress ticks
     ticks = floor(25 * prog)
+
     # print the new number minus the current number
     print((ticks - tick_count) * '-', end='')
     stdout.flush()
@@ -91,15 +102,16 @@ def train_loop(model, train_loader, val_loader, epoch, device):
     # TRAINING
     # status update
     print("Training...")
+
     # set model to train mode
     model.train()
-    # begin records for training accuracy and loss
+
+    # begin records for training accuracy, loss, and progress bar
     trn_acc = 0
     trn_loss = 0
-    # begin record for progress bar
     tick_count = 0
-    # loop through batches in training data loader
 
+    # loop through batches in training data loader
     for batch_index, batch in enumerate(train_loader):
         # get inputs and labels and send them to cuda if cuda is available
         inputs, labels = batch
@@ -134,13 +146,15 @@ def train_loop(model, train_loader, val_loader, epoch, device):
     # VALIDATION
     # status update
     print("Validating...")
+
     # set model to evaluate mode
     model.eval()
-    # begin records for validation accuracy and loss
+
+    # begin records for validation accuracy, loss, and progress bar
     val_acc = 0
     val_loss = 0
-    # begin record for progress bar
     tick_count = 0
+
     # gradients are not computed during validation
     with torch.no_grad():
         # loop through batches in validation data loader
@@ -179,34 +193,42 @@ def train_loop(model, train_loader, val_loader, epoch, device):
 def test_loop(model, test_loader, device):
     # set model to evaluate mode
     model.eval()
-    # begin record for testing accuracy
+
+    # begin records for testing accuracy, progress bar
+    acc_list = []
     acc = 0
-    # begin record for progress bar
     tick_count = 0
+
     # gradients are not calculated during testing
     with torch.no_grad():
         # loop trough batches in test data loader
         for batch_index, batch in enumerate(test_loader):
             # get inputs and labels and send them to cuda if cuda is available
-            inputs, labels = batch
+            inputs, labels, imgs = batch
             inputs = inputs.to(device)
             labels = labels.to(device)
 
             # update record for testing accuracy
-            acc += get_acc_and_loss(model, inputs, labels)[0]
+            batch_acc = get_acc_and_loss(model, inputs, labels, save=True)
+            for val in range(len(batch_acc)):
+                acc_list.append([imgs[val], str(batch_acc[val])])
+            acc += len([i for i in batch_acc if i == 1])
 
             # update loading bar
             tick_count = progress((batch_index + 1) / len(test_loader), tick_count)
 
         # find average accuracy from records
-        acc = "%.1f" % (acc * 100 / len(test_loader))
+        acc = "%.1f" % (acc * 100 / len(acc_list))
 
         # print testing accuracy
         print(f"Accuracy: {acc}%")
+        acc_list.append(['Accuracy', str(acc)])
+
+        return acc_list
 
 
 # big function that does all the stuff you tell it to!
-def model_functions(train_set, mdl_name, new_file, train, test, load, save,
+def model_functions(train_set, transform, mdl_name, new_file, train, test, load, save,
                     train_split, val_split, test_split, ilr, lrs,
                     path_to_saved_models, batch_size, device):
     # instantiate the model
@@ -222,7 +244,7 @@ def model_functions(train_set, mdl_name, new_file, train, test, load, save,
     # if training, load the train and validation datasets and run the train loop
     if train:
         # load the training dataset. which dataset to load is a function parameter.
-        train_dataset = train_set(train_split)
+        train_dataset = train_set(train_split, transform=transform)
         train_loader = DataLoader(train_dataset, batch_size=batch_size,
                                   num_workers=10, drop_last=False, shuffle=True)
 
@@ -237,14 +259,14 @@ def model_functions(train_set, mdl_name, new_file, train, test, load, save,
         trn_loss_record = []
         trn_acc_record = []
         time_record = []
-        low_vloss = 132
+        low_val_loss = 132
+
         # begin epochs
         epoch_index = 0
-        # status report
         print(f"TRAINING {mdl_name}\n=========================\n")
+
         # loop training until validation loss stops decreasing
-        while (epoch_index < 5 or min([float(r) for r in val_loss_record[-5:]]) <= low_vloss) \
-                and epoch_index < 16:
+        while (epoch_index < 4 or min([float(r) for r in val_loss_record[-4:]]) <= low_val_loss) and epoch_index < 16:
             # increment epoch, status report and start timer
             epoch_index += 1
             print(f"Epoch {epoch_index}")
@@ -252,6 +274,7 @@ def model_functions(train_set, mdl_name, new_file, train, test, load, save,
 
             # run training loop and capture accuracy and validation records
             records = train_loop(model, train_loader, val_loader, epoch_index, device)
+
             # split records among correct record lists
             val_loss_record.append(records[3])
             val_acc_record.append(records[2])
@@ -264,8 +287,8 @@ def model_functions(train_set, mdl_name, new_file, train, test, load, save,
             print("Elapsed time:", finish, '\n')
 
             # check for new lowest validation loss and save if required
-            if float(records[3]) < low_vloss and epoch_index >= 3:
-                low_vloss = float(records[3])
+            if float(records[3]) < low_val_loss and epoch_index >= 3:
+                low_val_loss = float(records[3])
                 if save:
                     # create an epoch-by-epoch list of loss and accuracy
                     data = [['epoch', 'train_acc', 'train_loss', 'val_acc', 'val_loss', 'time']]
@@ -273,8 +296,8 @@ def model_functions(train_set, mdl_name, new_file, train, test, load, save,
                         data.append([i + 1, trn_acc_record[i], trn_loss_record[i],
                                      val_acc_record[i], val_loss_record[i], time_record[i]])
                     # save the data list to a csv file
-                    with open(path_to_saved_models + 'data/' + mdl_name + '_data.csv', 'w+') as dataFile:
-                        writer = csv.writer(dataFile)
+                    with open(path_to_saved_models + 'data/' + mdl_name + '_data.csv', 'w') as file:
+                        writer = csv.writer(file)
                         for line in data:
                             writer.writerow(line)
                     # save the model. if a new file is specified, save to new_file
@@ -286,7 +309,7 @@ def model_functions(train_set, mdl_name, new_file, train, test, load, save,
     # if testing, load the test dataset and run the test loop
     if test:
         # load test dataset
-        test_dataset = CelebADataset(test_split)
+        test_dataset = CelebADataset(test_split, transform='test')
         test_loader = DataLoader(test_dataset, batch_size=batch_size,
                                  num_workers=6, drop_last=False, shuffle=False)
 
@@ -294,17 +317,19 @@ def model_functions(train_set, mdl_name, new_file, train, test, load, save,
         print("TESTING")
 
         # run test loop
-        test_loop(model, test_loader, device)
+        test_accuracy = test_loop(model, test_loader, device)
 
         # eventually testing data will be saved to a file.
         if save:
-            pass
+            with open(path_to_saved_models + 'data/' + mdl_name + '_test.csv', 'w+') as file:
+                writer = csv.writer(file)
+                for line in test_accuracy:
+                    writer.writerow(line)
 
 
 def main():
     # configuration variables
-    path_to_saved_models = "../../trained_models/"
-
+    path_to_saved_models = "/home/guest/MPL-REU-2022/TrainModel/trained_models/"
     batch_size = 64
 
     # select processor. if there is more than one gpu, ask which one to use
@@ -326,6 +351,10 @@ def main():
     for current_model in model_params:
         model_functions(*current_model, path_to_saved_models, batch_size, device)
 
+
+# augmented_celeba_16_100_dflt_dflt_dflt
+# naming convention:
+# train_test_augmentations_percentaugmented_datasetsplit_learningrate_scheduler
 
 if __name__ == "__main__":
     main()
