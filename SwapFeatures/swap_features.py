@@ -274,23 +274,26 @@ def copy_triangles(t_source, t_dest, im_source, im_dest, isolated_points, source
 
 def choose_attribute(points, attribute):
     attribute_dict = {0: 'chin', 1: 'jaw', 2: 'eyebrows', 3: 'nose', 4: 'eyes', 5: 'mouth', 6: 'cheek'}
+    curr_points = []
 
     for a in attribute:
         match attribute_dict[a]:
             case 'chin':
-                return points[6:11]
+                curr_points = curr_points + points[6:11]
             case 'jaw':
-                return points[:17]
+                curr_points = curr_points + points[:17]
             case 'eyebrows':
-                return points[17:26]
+                curr_points = curr_points + points[17:26]
             case 'nose':
-                return points[27:37]
+                curr_points = curr_points + points[27:37]
             case 'eyes':
-                return points[36:48]
+                curr_points = curr_points + points[36:48]
             case 'mouth':
-                return points[48:]
+                curr_points = curr_points + points[48:]
             case 'cheek':
-                return [points[48], points[54]]
+                curr_points = curr_points + [points[48], points[54]]
+
+    return curr_points
 
 
 def swap_attributes(image_pair):
@@ -299,7 +302,7 @@ def swap_attributes(image_pair):
     points_source = plot_landmarks(source, image_source)
     image_dest = cv2.imread(image_dest_path + dest[0])
     points_dest = plot_landmarks(dest, image_dest)
-    attribute_type = [5]
+    attribute_type = [4, 6]
     # {0: 'chin', 1: 'jaw', 2: 'eyebrows', 3: 'nose', 4: 'eyes', 5: 'mouth', 6: 'cheek'}
 
     # find the triangulation for the destination image (to match in the source image)
@@ -336,7 +339,7 @@ def find_image_pairs(source, dest):
     """Documentation here"""
     pairs = []
     for d in dest:
-        source_images = random.sample(source, 11)
+        source_images = random.sample(source, 1)
         for s in source_images:
             pairs.append([s, d])
 
@@ -344,11 +347,11 @@ def find_image_pairs(source, dest):
 
 
 # Modify the lines below to fit your system and file organization
-file_source = open('landmarks_female.csv')
-file_dest = open('landmarks_male.csv')
-image_source_path = '/home/guest/MPL-REU-2022/female/'
-image_dest_path = '/home/guest/MPL-REU-2022/male/'
-final_images_path = '/home/guest/MPL-REU-2022/swapped_attributes/mouth/female->male/'
+file_source = open('landmarks_male.csv')
+file_dest = open('landmarks_female.csv')
+image_source_path = '/home/guest/MPL-REU-2022/male/'
+image_dest_path = '/home/guest/MPL-REU-2022/female/'
+final_images_path = '/home/guest/MPL-REU-2022/swapped_attributes/eyes_cheek/male->female/'
 
 # Dataset generation begins here, open landmark files
 csvreader = csv.reader(file_source)
