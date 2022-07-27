@@ -23,7 +23,7 @@ def get_acc_of_set():
     #     if not perc:
     #         perc = ['50', '75', '100']
     # else:
-    perc = ['50']
+    # perc = ['50']
 
     # get only selected models
     selected = []

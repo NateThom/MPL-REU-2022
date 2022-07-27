@@ -7,7 +7,7 @@ import time
 import datetime
 from math import floor
 import csv
-from load_data import CelebADataset, OccludedDataset, HEATDataset
+from load_data import CelebADataset
 from params_inquiry import get_params
 
 

@@ -47,15 +47,18 @@ def get_params():
 
         # get training dataset
         if params[2]:
-            dataset = inq.list_input("Training Dataset", choices=['CelebA', 'Occluded'])
-            params.insert(0, {'CelebA': CelebADataset, 'Occluded': OccludedDataset}[dataset])
+            dataset = inq.list_input("Training Dataset",
+                                     choices=['CelebA', 'Occluded', 'Standard Augmentations'])
+            params.insert(0, {'CelebA': CelebADataset,
+                              'Occluded': OccludedDataset,
+                              'Standard Augmentations': StandardAugDataset}[dataset])
         else:
             params.insert(0, CelebADataset)
 
-        # get training dataset
+        # get testing dataset
         if params[4]:
             dataset = inq.list_input("Testing Dataset", choices=['CelebA', 'HEAT'])
-            params.insert(1, {'CelebA': CelebADataset, 'HEAT': HEATDataset}[dataset])
+            params.insert(1, {'CelebA': CelebADataset, 'HEAD': HEADDataset}[dataset])
         else:
             params.insert(1, CelebADataset)
 
@@ -65,6 +68,8 @@ def get_params():
         else:
             if params[0] == OccludedDataset:
                 choices = ['eyebrows', 'eyes', 'nose', 'mouth', 'chin']
+            elif params[0] == StandardAugDataset:
+                choices = ['rotation', 'erasing', 'blur', 'jitter', 'resize/crop']
             augs = inq.checkbox("Select augmentations to use",
                                 choices=choices)
             if augs == []:
