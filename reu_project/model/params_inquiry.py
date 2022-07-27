@@ -1,6 +1,7 @@
 import inquirer as inq
 from sys import stdout
 from load_data import *
+import os
 
 
 # get model parameters from user using inquiry module
@@ -10,7 +11,13 @@ def get_params():
     valid = False
     while not valid:
         try:
-            num_models = int(inq.text("Number of models"))
+            num_models = inq.text("Number of models")
+            if num_models != 'all':
+                num_models = int(num_models)
+                all = False
+            else:
+                num_models = 1
+                all = True
             valid = True
         except:
             print("Invalid value. Enter an integer.")
@@ -41,49 +48,38 @@ def get_params():
         # get training dataset
         if params[2]:
             dataset = inq.list_input("Training Dataset", choices=['CelebA', 'Occluded'])
-            params.insert(0, {'CelebA': CelebA_Dataset, 'Occluded': Occluded_Dataset}[dataset])
+            params.insert(0, {'CelebA': CelebADataset, 'Occluded': OccludedDataset}[dataset])
         else:
-            params.insert(0, CelebA_Dataset)
+            params.insert(0, CelebADataset)
+
+        # get training dataset
+        if params[4]:
+            dataset = inq.list_input("Testing Dataset", choices=['CelebA', 'HEAT'])
+            params.insert(1, {'CelebA': CelebADataset, 'HEAT': HEATDataset}[dataset])
+        else:
+            params.insert(1, CelebADataset)
 
         # get special parameters for augmented data
-        if params[0] == CelebA_Dataset:
-            params.insert(1, None)
+        if params[0] == CelebADataset:
+            params.insert(2, None)
         else:
-            valid = False
-            while not valid:
-                if params[0] == Occluded_Dataset:
-                    choices = ['eyebrows', 'eyes', 'nose', 'mouth', 'chin']
-                augs = inq.checkbox("Select augmentations to use",
-                                    choices=choices)
-                if augs == []:
-                    print("Select at least one augmentation.")
-                else:
-                    valid = True
-                    # translate selected augmentations into binary
-                    augs = [1 if aug in augs else 0 for aug in
-                            choices]
-            portion_min = 50
-            portion_max = min(100, ((162079 * ((2 ** len([i for i in augs if i == 1]))
-                                               - 1)) * 100) // 324158)
-            valid = False
-            print('\n')
-            while not valid:
-                try:
-                    portion = int(inq.text("Percentage of dataset to be augmented "
-                                           f"({portion_min} - {portion_max})"))
-                    if portion_min <= portion <= portion_max:
-                        valid = True
-                    else:
-                        raise Exception
-                except:
-                    print(f"Invalid value. Enter an int from {portion_min} to {portion_max}.")
-            params.insert(1, [augs, portion/100])
+            if params[0] == OccludedDataset:
+                choices = ['eyebrows', 'eyes', 'nose', 'mouth', 'chin']
+            augs = inq.checkbox("Select augmentations to use",
+                                choices=choices)
+            if augs == []:
+                augs = [0, 0, 0, 0, 0]
+            else:
+                # translate selected augmentations into binary
+                augs = [1 if aug in augs else 0 for aug in
+                        choices]
+            params.insert(2, augs)
 
         # get custom dataset splits if requested
         default_split = inq.list_input("Default dataset split?", choices=['yes', 'no'])
         if default_split == 'no':
             print("Enter custom splits. Enter each as two floats between 0 and 1.")
-            split_check = {'training':params[4], 'validation':params[4], 'testing':params[5]}
+            split_check = {'training':params[5], 'validation':params[5], 'testing':params[6]}
             for split in ['training', 'validation', 'testing']:
                 if split_check[split]:
                     valid = False
@@ -105,26 +101,38 @@ def get_params():
             params.extend([(0, 0.8), (0.8, 0.9), (0.9, 1)])
 
         # get custom learning rate and scheduler if requested
-        default_lr = inq.list_input("Default learning rate and scheduler?",
-                                    choices=['yes', 'no'])
-        if default_lr == 'no':
-            valid = False
-            while not valid:
-                c_ilr = inq.text("Custom learning rate")
-                try:
-                    params.append(float(c_ilr))
-                    valid = True
-                except:
-                    print("Invalid value. Enter a float.")
-            print('')
-            c_lrs = inq.list_input('Select scheduler',
-                                   choices=['step-wise', 'exponential', 'constant'])
-            params.append({'step-wise':'step', 'exponential':'exp', 'constant':'const'}[c_lrs])
+        if params[5]:
+            default_lr = inq.list_input("Default learning rate and scheduler?",
+                                        choices=['yes', 'no'])
+            if default_lr == 'no':
+                valid = False
+                while not valid:
+                    c_ilr = inq.text("Custom learning rate")
+                    try:
+                        params.append(float(c_ilr))
+                        valid = True
+                    except:
+                        print("Invalid value. Enter a float.")
+                print('')
+                c_lrs = inq.list_input('Select scheduler',
+                                       choices=['step-wise', 'exponential', 'constant'])
+                params.append({'step-wise':'step', 'exponential':'exp', 'constant':'const'}[c_lrs])
+            else:
+                params.extend([0.0001, 'step'])
         else:
-            params.extend([0.0001, 'step'])
+            params.extend([1, 'xyzzy'])
 
         # add set of parameters to list
         models.append(params)
+
+        # if all models are selected, do 'em all
+        if all and models[0][6]:
+            allmodels = os.listdir('../../trained_models/models')
+            allmodels.sort()
+            for m in allmodels:
+                models.append(models[0].copy())
+                models[-1][3] = m[:-4]
+            models.remove(models[0])
 
     # print to stdout and return
     stdout.flush()

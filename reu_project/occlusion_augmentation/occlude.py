@@ -1,11 +1,11 @@
 from PIL import Image
 import csv
-import skintoneblur
+import skintone_occlusions
 import time
 from multiprocessing import Pool
 
 
-def compareImgs(imgs, img):
+def compare_imgs(imgs, img):
     for cimg in imgs:
         diffs = 5
         for i in range(5):
@@ -32,18 +32,18 @@ def image(imgNum):
                     for e in range(2):
                         for eb in range(2):
                             # get a clean copy of the closest reference image
-                            img = rimgs[compareImgs(rnums, (c, m, n, e, eb))].copy()
+                            img = rimgs[compare_imgs(rnums, (c, m, n, e, eb))].copy()
                             # perform the earliest manipulation
                             if c == 1:
-                                skintoneblur.blurEyebrows(img, lms)
+                                skintone_occlusions.blurEyebrows(img, lms)
                             elif m == 1:
-                                skintoneblur.blurEyes(img, lms)
+                                skintone_occlusions.blurEyes(img, lms)
                             elif n == 1:
-                                skintoneblur.blurNose(img, lms)
+                                skintone_occlusions.blurNose(img, lms)
                             elif e == 1:
-                                skintoneblur.blurMouth(img, lms)
+                                skintone_occlusions.blurMouth(img, lms)
                             elif eb == 1:
-                                skintoneblur.blurChin(img, lms)
+                                skintone_occlusions.blurChin(img, lms)
                             # save image to reference image list
                             if c == 0:
                                 rimgs.append(img)
@@ -77,19 +77,19 @@ def main():
     spath = '../../Data_Augmentation/augmented_data/'
 
     #  uncomment this section if you have a list of specific images to process.
-    #  add    if i in missing    to list comprehension in line 92
-    # with open('../../missing.txt', 'r') as f:
-    #     missing = {}
+    #  add    if i in imglist    to list comprehension in line 92
+    # with open('../../imglist.txt', 'r') as f:
+    #     imglist = {}
     #     for line in f:
     #         l = int(line.rstrip())
-    #         missing[l] = l
+    #         imglist[l] = l
 
     # start timer
     startTime = time.time()
 
     # multiprocessing loop through images
     with Pool(12) as p:
-        p.map(image, [i for i in range(1, numImg+1)]) #if i in missing])
+        p.map(image, [i for i in range(1, numImg+1)]) #if i in imglist])
 
     # end timer
     totalTime = time.time() - startTime

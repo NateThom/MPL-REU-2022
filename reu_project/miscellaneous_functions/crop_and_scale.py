@@ -1,4 +1,5 @@
 import csv
+import os
 from math import floor
 from PIL import Image
 
@@ -43,12 +44,15 @@ def scaleimg():
             l = int(line.rstrip())
             missing[l] = l
 
+    path = '../../Data_Augmentation/samples_etc/IMG_errors_orig/'
+#    path = '../../../HEAT/Img/'
+    missing = os.listdir(path)
+    missing = [int(m[:-4]) for m in missing]
+
     for m in missing:
-        with Image.open('../../Data_Augmentation/samples_etc/IMG_errors_orig/'
-                        +str(m).zfill(6)+'.jpg') as i:
+        with Image.open(path+str(m).zfill(6)+'.jpg') as i:
             i = i.resize((224, 224))
-            i.save('../../Data_Augmentation/samples_etc/IMG_errors_orig/'
-                   +str(m).zfill(6)+'.jpg')
+            i.save(path+str(m).zfill(6)+'.jpg')
 
 
 scaleimg()

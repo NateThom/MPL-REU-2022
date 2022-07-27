@@ -4,6 +4,10 @@ errors.txt
 missing.txt
 missingerr.txt
 trained_models
+fix_test_record.py
+rgbthatshit.py
+relabel_heat.py
+epoch_accuracy.py
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

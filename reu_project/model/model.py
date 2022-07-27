@@ -7,7 +7,7 @@ import time
 import datetime
 from math import floor
 import csv
-from load_data import CelebA_Dataset, Occluded_Dataset, LFW_Dataset
+from load_data import CelebADataset, OccludedDataset, HEATDataset
 from params_inquiry import get_params
 
 
@@ -218,8 +218,8 @@ def test_loop(model, test_loader, device):
 
 
 # big function that does all the stuff you tell it to!
-def model_functions(train_set, transform, mdl_name, new_file, train, test, load, save,
-                    train_split, val_split, test_split, ilr, lrs,
+def model_functions(train_set, test_set, transform, mdl_name, new_file, train, test,
+                    load, save, train_split, val_split, test_split, ilr, lrs,
                     path_to_saved_models, batch_size, device):
 
     # instantiate the model
@@ -240,7 +240,7 @@ def model_functions(train_set, transform, mdl_name, new_file, train, test, load,
                                   num_workers=10, drop_last=False, shuffle=True)
 
         # load the validation dataset. this is always CelebA.
-        val_dataset = CelebA_Dataset(val_split)
+        val_dataset = CelebADataset(val_split)
         val_loader = DataLoader(val_dataset, batch_size=batch_size,
                                 num_workers=10, drop_last=False, shuffle=False)
 
@@ -299,7 +299,7 @@ def model_functions(train_set, transform, mdl_name, new_file, train, test, load,
     # if testing, load the test dataset and run the test loop
     if test:
         # load test dataset
-        test_dataset = LFW_Dataset(test_split, transform='test')
+        test_dataset = test_set(test_split, transform='test')
         test_loader = DataLoader(test_dataset, batch_size=batch_size,
                                  num_workers=6, drop_last=False, shuffle=False)
 
@@ -311,6 +311,7 @@ def model_functions(train_set, transform, mdl_name, new_file, train, test, load,
 
         # save testing data to a file
         if save:
+            acc_list.insert(0, ['image_name', 'accuracy'])
             if new_file is None:
                 save_name = mdl_name
             else:
