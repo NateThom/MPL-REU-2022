@@ -1,12 +1,12 @@
 import os
 import csv
 import matplotlib.pyplot as plt
-import matplotlib.patches as mpatches
+import matplotlib.patches as patches
 from matplotlib.ticker import MultipleLocator, FormatStrFormatter
 
 
 def main():
-    path_to_data = "../../trained_models/data/"
+    path_to_data = "/home/guest/MPL-REU-2022/TrainModel/trained_models/data/"
     models = os.listdir(path_to_data)
     models.sort()
     for i in range(len(models)):
@@ -24,9 +24,9 @@ def main():
             try:
                 selected = [model_dict[key] for key in keys]
                 break
-            except:
+            except ValueError:
                 print("please enter a number in the list")
-        except:
+        except ValueError:
             print("please enter integers")
 
     for model_name in selected:
@@ -44,7 +44,7 @@ def main():
             timeline = [0]
             for j in range(1, len(raw)):
                 val = raw[j][5].split(":")
-                timeline.append((int(val[0])*60+int(val[1])+int(val[2])/60+timeline[-1])//1)
+                timeline.append((int(val[0]) * 60 + int(val[1]) + int(val[2]) / 60 + timeline[-1])//1)
             if len(data[0]) >= 10:
                 inter = len(timeline) // 10
                 data.append([timeline[i*inter] for i in range(10)])
@@ -59,8 +59,8 @@ def main():
         plt.plot(data[0], data[4], '-b')
         plt.plot(data[0], data[2], '-r')
         plt.title("Training and Validation Loss")
-        tl_patch = mpatches.Patch(color='red', label='training loss')
-        vl_patch = mpatches.Patch(color='blue', label='validation loss')
+        tl_patch = patches.Patch(color='red', label='training loss')
+        vl_patch = patches.Patch(color='blue', label='validation loss')
         plt.legend(handles=[tl_patch, vl_patch])
         plt.xlabel('epochs')
         plt.ylabel('loss')
@@ -78,8 +78,8 @@ def main():
         plt.plot(data[0], data[3], '-b')
         plt.plot(data[0], data[1], '-r')
         plt.title("Training and Validation Accuracy")
-        ta_patch = mpatches.Patch(color='red', label='training accuracy')
-        va_patch = mpatches.Patch(color='blue', label='validation accuracy')
+        ta_patch = patches.Patch(color='red', label='training accuracy')
+        va_patch = patches.Patch(color='blue', label='validation accuracy')
         plt.legend(handles=[ta_patch, va_patch])
         plt.xlabel('epochs')
         plt.ylabel('accuracy')
@@ -93,7 +93,6 @@ def main():
             taxis2 = plot2.twiny()
             taxis2.set_xlabel('time (minutes)')
             taxis2.set_xticks((data[5]))
-
         plt.show()
 
 
