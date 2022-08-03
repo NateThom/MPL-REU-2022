@@ -284,7 +284,7 @@ def swap_attributes(image_pair):
     points_source = plot_landmarks(source)
     image_dest = cv2.imread(image_dest_path + dest[0])
     points_dest = plot_landmarks(dest)
-    attribute_type = [1, 6]
+    attribute_type = [0, 6]
     # {0: 'chin', 1: 'jaw', 2: 'eyebrows', 3: 'nose', 4: 'eyes', 5: 'mouth', 6: 'cheek'}
 
     # find the triangulation for the destination image (to match in the source image)
@@ -319,11 +319,11 @@ def find_image_pairs(source, dest):
 
 
 # Modify the lines below to fit your system and file organization
-file_source = open('landmarks_female.csv')
-file_dest = open('landmarks_male.csv')
-image_source_path = '/home/guest/MPL-REU-2022/female/'
-image_dest_path = '/home/guest/MPL-REU-2022/male/'
-final_images_path = '/home/guest/MPL-REU-2022/swapped_attributes/double2/jaw_cheek/female->male/'
+file_source = open('landmarks_male.csv')
+file_dest = open('landmarks_female.csv')
+image_source_path = '/home/guest/MPL-REU-2022/male/'
+image_dest_path = '/home/guest/MPL-REU-2022/female/'
+final_images_path = '/home/guest/MPL-REU-2022/swapped_attributes/double2/chin_cheek/male->female/'
 
 # Dataset generation begins here, open landmark files
 csvreader = csv.reader(file_source)

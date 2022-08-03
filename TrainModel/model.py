@@ -352,7 +352,7 @@ def main():
         model_functions(*current_model, path_to_saved_models, batch_size, device)
 
 
-# augmented_celeba_16_100_dflt_dflt_dflt
+# aug_56_100_dflt_dflt_dflt
 # naming convention:
 # train_test_augmentations_percentaugmented_datasetsplit_learningrate_scheduler
 
