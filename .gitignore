@@ -8,6 +8,8 @@ fix_test_record.py
 rgbthatshit.py
 relabel_heat.py
 epoch_accuracy.py
+epoch_analysis.py
+epochs_vs_validation.py
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

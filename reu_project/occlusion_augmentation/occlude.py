@@ -15,15 +15,15 @@ def compare_imgs(imgs, img):
                 return imgs.index(cimg)
 
 
-def image(imgNum):
+def image(img_num):
     try:
         # open image and begin list of reference images
-        with Image.open(opath + str(imgNum).zfill(6) + '.jpg') as fimg:
+        with Image.open(opath + str(img_num).zfill(6) + '.jpg') as fimg:
             rimgs = [fimg.copy()]
             rnums = [(0, 0, 0, 0, 0)]
 
         # get correct row of landmarks file and convert to ints
-        lms = [int(i) for i in landmarks[imgNum][1:]]
+        lms = [int(i) for i in landmarks[img_num][1:]]
 
         # loop through binary for each feature
         for c in range(2):
@@ -35,34 +35,34 @@ def image(imgNum):
                             img = rimgs[compare_imgs(rnums, (c, m, n, e, eb))].copy()
                             # perform the earliest manipulation
                             if c == 1:
-                                skintone_occlusions.blurEyebrows(img, lms)
+                                skintone_occlusions.blur_eyebrows(img, lms)
                             elif m == 1:
-                                skintone_occlusions.blurEyes(img, lms)
+                                skintone_occlusions.blur_eyes(img, lms)
                             elif n == 1:
-                                skintone_occlusions.blurNose(img, lms)
+                                skintone_occlusions.blur_nose(img, lms)
                             elif e == 1:
-                                skintone_occlusions.blurMouth(img, lms)
+                                skintone_occlusions.blur_mouth(img, lms)
                             elif eb == 1:
-                                skintone_occlusions.blurChin(img, lms)
+                                skintone_occlusions.blur_chin(img, lms)
                             # save image to reference image list
                             if c == 0:
                                 rimgs.append(img)
                                 rnums.append((c, m, n, e, eb))
                             # save image in correct folder
                             folder = str(c) + str(m) + str(n) + str(e) + str(eb) + '/'
-                            img.save(spath+folder+str(imgNum).zfill(6)+'.jpg')
+                            img.save(spath+folder+str(img_num).zfill(6)+'.jpg')
     except Exception as e:
         print(e)
-        print('help ', imgNum)
+        print('help ', img_num)
 
 
 def main():
     # ask for number of images - change line 62 for a different sized dataset
-    numImg = (input("number of images requested: "))
-    if numImg == 'all':
-        numImg = 202599
+    num_img = (input("number of images requested: "))
+    if num_img == 'all':
+        num_img = 202599
     else:
-        numImg = int(numImg)
+        num_img = int(num_img)
 
     # import landmarks
     with open('../../Data_Augmentation/imagepoints/landmarks_highres.csv') as f:
@@ -85,15 +85,15 @@ def main():
     #         imglist[l] = l
 
     # start timer
-    startTime = time.time()
+    start_time = time.time()
 
     # multiprocessing loop through images
     with Pool(12) as p:
-        p.map(image, [i for i in range(1, numImg+1)]) #if i in imglist])
+        p.map(image, [i for i in range(1, num_img+1)]) #if i in imglist])
 
     # end timer
-    totalTime = time.time() - startTime
-    print("Elapsed Time: ", totalTime)
+    total_time = time.time() - start_time
+    print("Elapsed Time: ", total_time)
 
 
 if __name__ == "__main__":

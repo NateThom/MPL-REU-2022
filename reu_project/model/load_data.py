@@ -7,6 +7,7 @@ from torchvision.transforms import functional as tf
 from torchvision import transforms
 import matplotlib.pyplot as plt
 
+
 class OccludedDataset(Dataset):
     def __init__(self, split, transform=None):
         augs = transform
@@ -164,7 +165,7 @@ class HEADDataset(Dataset):
 
 
 def showbatch(b):
-    labels_map = {0:'female', 1:'male'}
+    labels_map = {0: 'female', 1: 'male'}
     imgs, lbls = b
     fig = plt.figure()
     cols, rows = 4, 4
@@ -176,6 +177,7 @@ def showbatch(b):
         plt.axis("off")
         plt.imshow(img.numpy().transpose((1, 2, 0)))
     plt.show()
+
 
 def makesample():
     celeba_dataset = StandardAugDataset((0, 0.0005), transform=[1, 1, 1, 1, 1])

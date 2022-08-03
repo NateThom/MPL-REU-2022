@@ -2,7 +2,7 @@ from sys import stdout
 import torch
 from torch import nn
 from torch.utils.data import DataLoader
-import torchvision
+from torchvision.models import resnet50, ResNet50_Weights
 import time
 import datetime
 from math import floor
@@ -19,7 +19,7 @@ class ResNet50(nn.Module):
         self.softmax_layer = nn.Softmax(dim=1)
 
         # Resnet
-        self.model = torchvision.models.resnet50()
+        self.model = resnet50()
 
         # Edit output of fully connected layer so that only two values are output
         self.model.fc = nn.Linear(in_features=self.model.fc.in_features, out_features=2)
@@ -344,10 +344,10 @@ def main():
 
     # run each model using given parameters
     for current_model in model_params:
-        # try:
-        model_functions(*current_model, path_to_saved_models, batch_size, device)
-        # except:
-        #     print("Model operations failed.")
+        try:
+            model_functions(*current_model, path_to_saved_models, batch_size, device)
+        except:
+            print("Model operations failed.")
 
 
 if __name__ == "__main__":
@@ -465,9 +465,9 @@ if __name__ == "__main__":
 #
 # Initial learning rate and selected learning rate scheduler are passed to the model's
 # __init__() function. Learning rate is adjusted by the selected scheduler. Currently
-# implemented are an exponential scheduler and a step-wise scheduler, but additional
+# implemented are an exponential scheduler and a step-based scheduler, but additional
 # schedulers can be easily added. By default, get_params() passes 'step' for the
-# step-wise scheduler, and an initial learning rate of 0.0001. See lines 37-45.
+# step-based scheduler, and an initial learning rate of 0.0001. See lines 37-45.
 #
 # PyCharm has a bug which prevents the use of the inquiry module in get_params(). To bypass
 # this bug, set your run configuration to emulate terminal in output console (wrench icon to

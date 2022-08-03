@@ -6,7 +6,7 @@ import inquirer as inq
 def get_acc_of_set():
     # get test data from directory
     path = '../../trained_models/test_records/'
-    files = [i for i in os.listdir(path) if i[:4] == 'occl']
+    files = [i for i in os.listdir(path) if i[:4] == 'occl' and 'lfw' not in i]
     files.sort()
 
     # get correct models from user
@@ -40,6 +40,8 @@ def get_acc_of_set():
         if needed:
             selected.append(model)
 
+    print(selected)
+
     # get average accuracy of selected models
     acc_list = []
     for model in range(len(selected)):
@@ -48,6 +50,8 @@ def get_acc_of_set():
         correct = test_df.value_counts(test_df['accuracy'])
         acc_list.append(correct[1] / len(test_df))
 
+    for m in range(len(selected)):
+        print(selected[m], acc_list[m])
     set_acc = sum(acc_list) / len(acc_list)
 
     return round(set_acc, 3)

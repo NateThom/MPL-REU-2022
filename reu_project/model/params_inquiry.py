@@ -14,10 +14,10 @@ def get_params():
             num_models = inq.text("Number of models")
             if num_models != 'all':
                 num_models = int(num_models)
-                all = False
+                all_selected = False
             else:
                 num_models = 1
-                all = True
+                all_selected = True
             valid = True
         except:
             print("Invalid value. Enter an integer.")
@@ -57,8 +57,9 @@ def get_params():
 
         # get testing dataset
         if params[4]:
-            dataset = inq.list_input("Testing Dataset", choices=['CelebA', 'HEAT'])
-            params.insert(1, {'CelebA': CelebADataset, 'HEAD': HEADDataset}[dataset])
+            dataset = inq.list_input("Testing Dataset", choices=['CelebA', 'HEAD', 'LFW'])
+            params.insert(1, {'CelebA': CelebADataset, 'HEAD': HEADDataset,
+                              'LFW': LFWDataset}[dataset])
         else:
             params.insert(1, CelebADataset)
 
@@ -84,7 +85,7 @@ def get_params():
         default_split = inq.list_input("Default dataset split?", choices=['yes', 'no'])
         if default_split == 'no':
             print("Enter custom splits. Enter each as two floats between 0 and 1.")
-            split_check = {'training':params[5], 'validation':params[5], 'testing':params[6]}
+            split_check = {'training': params[5], 'validation': params[5], 'testing': params[6]}
             for split in ['training', 'validation', 'testing']:
                 if split_check[split]:
                     valid = False
@@ -121,7 +122,7 @@ def get_params():
                 print('')
                 c_lrs = inq.list_input('Select scheduler',
                                        choices=['step-wise', 'exponential', 'constant'])
-                params.append({'step-wise':'step', 'exponential':'exp', 'constant':'const'}[c_lrs])
+                params.append({'step-wise': 'step', 'exponential': 'exp', 'constant': 'const'}[c_lrs])
             else:
                 params.extend([0.0001, 'step'])
         else:
@@ -131,14 +132,16 @@ def get_params():
         models.append(params)
 
         # if all models are selected, do 'em all
-        if all and models[0][6]:
+        if all_selected and models[0][6]:
             allmodels = os.listdir('../../trained_models/models')
             allmodels.sort()
+            # allmodels = [i for i in allmodels if 'occl' in i]
             for m in allmodels:
                 models.append(models[0].copy())
                 models[-1][3] = m[:-4]
+                if models[0][4] is not None:
+                    models[-1][4] = models[-1][3] + models[0][4]
             models.remove(models[0])
-
     # print to stdout and return
     stdout.flush()
 
